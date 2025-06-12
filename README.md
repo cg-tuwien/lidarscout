@@ -1,5 +1,6 @@
-# IPES
-IPES
+# LidarScout
+
+This is the official implementation of LidarScout (High-Performance Graphics 2025). Repository is not finished, work in progress! Everything below might be outdated.
 
 ## About
 
