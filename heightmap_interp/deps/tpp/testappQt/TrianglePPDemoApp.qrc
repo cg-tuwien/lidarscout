@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/TrianglePPDemo">
+        <file>triangle-PP-ico.png</file>
+        <file>triangle-PP-sm.jpg</file>
+        <file>triangle-PP-ico.ico</file>
+    </qresource>
+</RCC>

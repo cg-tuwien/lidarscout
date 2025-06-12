@@ -1,0 +1,56 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+./build/
+build/*
+build_deb/*
+build/ALL_BUILD.vcxproj
+cmake/*
+./cmake/
+cmake/CMakeCache.txt
+
+testdata/
+.vs/
+build_release/
+build_debug/
+build_release/
+debug/
+ipes_cnn.pt
+ipes_cnn_rgb.pt
+imgui.ini
+cuda_compile_time.txt
+doodles/pipeline/pipeline.blend1
+doodles/node_modules/
+doodles/package-lock.json
+doodles/package.json
+modules/icp2/build/

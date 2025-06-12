@@ -1,0 +1,20 @@
+//
+// Created by lherzberger on 12.06.24.
+//
+
+#pragma once
+
+#ifndef ICP_READREQUESTTYPE_H
+#define ICP_READREQUESTTYPE_H
+
+namespace icp {
+enum ReadRequestType {
+  HEADER_REQUEST,
+  CHUNK_POINT_REQUEST,
+  CHUNK_TABLE_REQUEST,
+  CHUNK_TABLE_OFFSET_REQUEST,
+  VARIABLE_LENGTH_RECORDS_REQUEST,
+};
+}
+
+#endif  //ICP_READREQUESTTYPE_H
