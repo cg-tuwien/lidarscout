@@ -1,6 +1,12 @@
 # LidarScout
+Direct Out-of-Core Rendering of Massive Point Clouds
 
-This is the official implementation of LidarScout (High-Performance Graphics 2025). Repository is not finished, work in progress! Everything below might be outdated.
+This is the official implementation of LidarScout (High-Performance Graphics 2025). This is the repository for the viewer. For the training and evaluation part, see https://github.com/cg-tuwien/lidarscout_training
+
+Want to quickly try it? Here is a stand-alone executable for Windows: https://users.cg.tuwien.ac.at/perler/lidarscout/LidarScout.zip
+
+![LidarScout teaser](docs/teaser.jpg)
+
 
 ## About
 
@@ -8,24 +14,10 @@ Load large, tiled data sets by quickly loading bounding boxes, then only loading
 
 Goal: Also quickly load sparse subsample (every 50'000th point aka "chunk point") so that we can replace the bounding box with a higher-resolution subsample (~500 points per tile).
 
-<img src="./docs/direct_vis_2.gif" />
+Every 50'000th point corresponds to the compressed LAZ format, which compresses point clouds in chunks of 50k points. The first point of each chunk is uncompressed, and can therefore be easily loaded with random access. We can predict heightmaps from this sparse subsample.
 
-Every 50'000th point corresponds to the compressed LAZ format, which compresses point clouds in chunks of 50k points. The first point of each chunk is uncompressed, and can therefore be easily loaded with random access.
 
 ## Build
-
-### Prerequisites
-
-Check out the git submodules with:
-`git submodule update --init --recursive`
-
-We currently use two private libraries from GitHub:
-
-- [heightmap_interp](https://github.com/ErlerPhilipp/heightmap_interp)
-- [instant-chunk-points](https://github.com/JolifantoBambla/instant-chunk-points)
-
-To access those libraries, your GitHub account needs to have read permissions for both of them, your SSH key needs to
-be added to your GitHub account, and your local user needs to use this SSH key for authentication with GitHub.
 
 ### Install dependencies
 
@@ -46,27 +38,38 @@ mkdir build_debug
 cd build_debug
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 ```
+or run the `cmake_build_debug.bat` / `cmake_build_release.bat`.
 
-#### Notes
-
-- When .. install python3
-- IPES will link CUDA kernels on first run. This may take a few minutes.
 
 ## Usage
 
-Either start the program and drag & drop you point cloud data set onto the window, or specify a directory containing
-a LAS/LAZ data set that should be loaded on start up using the `--directory` (or `-d`) option:
+Start the program. LidarScout will link CUDA kernels on the first run, which may take a few minutes. Drag & drop your point cloud data set onto the window. Recursive folder drag & drop is supported. Only LAZ format is supported, meta data is not required.
 
+Optional CMD parameters: 
+- `--directory` (or `-d`) for point cloud path, default is empty for drag & drop
+- `--model` (or `-m`) path to a TorchScript model, default `./ipes_cnn.pt`
+- `--model_rgb` (or `-mrgb`) path to a TorchScript model, default `./ipes_cnn_rgb.pt`,
+- `--hmsize` (or `-s`) size of patches in meters, default is 640 for 10 meters per pixel
+
+Example:
 ````
-IPES.exe -d E:\CA13_SAN_SIM
+IPES.exe -d "E:\CA13_SAN_SIM" -m "./ipes_cnn.pt" -mrgb "./ipes_cnn_rgb.pt" -s 640
 ````
 
 Visual Studio IPES Project Settings:
 Debugging->Working Directory: $(OutputPath)
 Debugging->Command Arguments: -d E:\CA13_SAN_SIM
 
+
 ## Hot Reloading CUDA code:
 
 - Set workdir dir to ```$(SolutionDir)..```
 - Set path to models as program arguments: 
 ```-d E:\resources\pointclouds\CA13 -m ./build_debug/_deps/heightmap_interp-src/ipes_cnn.pt -mrgb ./build_debug/_deps/heightmap_interp-src/ipes_cnn_rgb.pt```
+
+
+## Citation
+If you use our work, please cite our paper:
+```
+TBD
+```
