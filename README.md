@@ -44,6 +44,8 @@ cmake -DCMAKE_BUILD_TYPE=Debug ..
 ```
 or run the `cmake_build_debug.bat` / `cmake_build_release.bat`.
 
+If the application complains about missing GLM files, start the application from the repo root directory with `.\build\Release\IPES.exe`. Alternatively, you can also copy the `libs` folder from the repo root to the IPES.exe folder (e.g. to `build\Release\libs`).
+
 
 ## Usage
 
