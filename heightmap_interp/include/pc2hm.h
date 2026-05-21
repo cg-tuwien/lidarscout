@@ -45,11 +45,13 @@ enum class InterpolationType
 //using coord = float;
 using coord = double;
 
-using Mask = std::vector<int>;
+using FaceMask = std::vector<int>;
+using PointMask = std::vector<uint8_t>;
 using HM = std::vector<float>;
 using IMG = std::vector<RGB>;
 using HMs = std::vector<HM>;
 using IMGs = std::vector<IMG>;
+using PointMasks = std::vector<PointMask>;
 
 class HeightmapGenerator {
 public:
@@ -69,7 +71,7 @@ public:
 	// Given a point cloud (local subsample, normalized around the origin)
 	// This overload is for the general use case
 	// It re-uses the triangulation, sampling and interpolation data for multiple attributes
-	std::tuple<HMs, IMGs, Mask>
+	std::tuple<HMs, IMGs, FaceMask, PointMask>
 		pts2hm(
 			std::vector<coord>& local_subsample,
 			std::vector<float>& pts_values_hm,
@@ -78,14 +80,14 @@ public:
 			const std::vector<InterpolationType>& interp_types_rgb);
 
 	// no colors
-	std::tuple<HMs, Mask>
+	std::tuple<HMs, FaceMask, PointMask>
 		pts2hm(
 			std::vector<coord>& local_subsample,
 			std::vector<float>& pts_values_hm,
 			const std::vector<InterpolationType>& interp_types);
 
 	// no colors, only one interpolation type
-	std::tuple<HM, Mask>
+	std::tuple<HM, FaceMask, PointMask>
 		pts2hm(
 			std::vector<coord>& local_subsample,
 			std::vector<float>& pts_values_hm,

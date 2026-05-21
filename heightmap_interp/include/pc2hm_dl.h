@@ -28,6 +28,7 @@ public:
 			const HMs& hm_lin,
 			const IMGs& rgb_nn,
 			const IMGs& rgb_lin,
+			const PointMasks& point_mask,
 			std::vector<CUdeviceptr> target_buffer_hm,
 			std::vector<CUdeviceptr> target_buffer_rgb);
 
@@ -38,6 +39,7 @@ public:
 			const HM& hm_lin,
 			const IMG& rgb_nn,
 			const IMG& rgb_lin,
+			const PointMask& point_mask,
 			CUdeviceptr target_buffer_hm,
 			CUdeviceptr target_buffer_rgb);
 
@@ -46,6 +48,7 @@ public:
 		hm2hm_cu(
 			const HM& hm_nn,
 			const HM& hm_lin,
+			const PointMask& point_mask,
 			CUdeviceptr target_buffer);
 
 	// improves a heightmap via prediction for given input interpolations
@@ -54,7 +57,8 @@ public:
 			const HM& hm_nn,
 			const HM& hm_lin,
 			const IMG& rgb_nn,
-			const IMG& rgb_lin);
+			const IMG& rgb_lin,
+			const PointMask& point_mask);
 
 	// improves a heightmap via prediction for given input interpolations
 	HM
@@ -62,8 +66,14 @@ public:
 			const HM& hm_nn,
 			const HM& hm_lin);
 
+	HM
+		hm2hm_vec(
+			const HM& hm_nn,
+			const HM& hm_lin,
+			const PointMask& point_mask);
+
 	// generates a heightmap (Cuda pointer) via interpolation and prediction for a given local subsample
-	Mask
+	std::tuple<FaceMask>
 		pts2hm_cu(
 			std::vector<coord>& local_subsample,
 			std::vector<float>& pts_values,
@@ -72,21 +82,21 @@ public:
 			CUdeviceptr target_buffer_rgb);
 
 	// generates a heightmap (Cuda pointer) via interpolation and prediction for a given local subsample
-	Mask
+	std::tuple<FaceMask>
 		pts2hm_cu(
 			std::vector<coord>& local_subsample,
 			std::vector<float>& pts_values,
 			CUdeviceptr target_buffer);
 
 	// generates a heightmap via interpolation and prediction for a given local subsample
-	std::tuple<HM, IMG, Mask>
+	std::tuple<HM, IMG, FaceMask>
 		pts2hm_vec(
 			std::vector<coord>& local_subsample,
 			std::vector<float>& pts_values,
 			std::vector<RGB>& pts_values_rgb);
 
 	// generates a heightmap via interpolation and prediction for a given local subsample
-	std::tuple<HM, Mask>
+	std::tuple<HM, FaceMask>
 		pts2hm_vec(
 			std::vector<coord>& local_subsample,
 			std::vector<float>& pts_values);

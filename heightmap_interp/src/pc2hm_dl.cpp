@@ -74,6 +74,7 @@ torch::Tensor hm2hm_learned(
 	const HMs& img_lin,
 	const IMGs& img_rgb_nn,
 	const IMGs& img_rgb_lin,
+	const PointMasks& point_mask,
 	int res_interp,
 	int measure_iterations,
 	int verbose_level)
@@ -93,6 +94,9 @@ torch::Tensor hm2hm_learned(
 	std::vector<float*> img_lin_data(img_lin.size());
 	std::transform(img_lin.begin(), img_lin.end(), img_lin_data.begin(),
 		[](const HM& hm) { return const_cast<float*>(hm.data()); });
+	std::vector<float*> point_mask_data(point_mask.size());
+	std::transform(point_mask.begin(), point_mask.end(), point_mask_data.begin(),
+		[](const PointMask& mask) { return const_cast<uint8_t*>(mask.data()); });
 
 	// package in IValue (Interpreter Value)
 	const long long num_patches = img_nn.size();
@@ -100,6 +104,7 @@ torch::Tensor hm2hm_learned(
 	c10::Dict<std::string, torch::Tensor> inputs;
 	add_data_to_dict(img_nn_data, { num_patches, 1, res_interp, res_interp }, "patch_hm_nearest", tensor_options, { }, inputs);
 	add_data_to_dict(img_lin_data, { num_patches, 1, res_interp, res_interp }, "patch_hm_linear", tensor_options, { }, inputs);
+	add_data_to_dict(point_mask_data, { num_patches, 1, res_interp, res_interp }, "patch_hm_mask", tensor_options, { }, inputs);
 
 	// add RGB data if available
 	if (img_rgb_lin.size() > 0)
@@ -181,13 +186,18 @@ void pc2hm::HeightmapGeneratorDL::hm2hm_cu_batched(
 	const HMs& hm_lin,
 	const IMGs& rgb_nn,
 	const IMGs& rgb_lin,
+	const PointMasks& point_mask,
 	std::vector<CUdeviceptr> target_buffer_hm,
 	std::vector<CUdeviceptr> target_buffer_rgb)
 {
 	// cuCtxSynchronize(); // only for timing
 
+	assert(hm_nn.size() == hm_lin.size());
+	assert(rgb_nn.size() == rgb_lin.size());
+	assert(hm_nn.size() == rgb_nn.size());
+
 	torch::Tensor prediction_tensor = hm2hm_learned(
-		this->model_rgb, hm_nn, hm_lin, rgb_nn, rgb_lin,
+		this->model_rgb, hm_nn, hm_lin, rgb_nn, rgb_lin, point_mask,
 		this->res_interp, this->measure_iterations, this->verbose_level);
 
 	if (prediction_tensor.device().is_cpu())
@@ -235,21 +245,23 @@ void pc2hm::HeightmapGeneratorDL::hm2hm_cu(
 	const HM& hm_lin,
 	const IMG& rgb_nn,
 	const IMG& rgb_lin,
+	const PointMask& point_mask,
 	CUdeviceptr target_buffer_hm,
 	CUdeviceptr target_buffer_rgb)
 {
-	this->hm2hm_cu_batched({ hm_nn }, { hm_lin }, { rgb_nn }, { rgb_lin }, { target_buffer_hm }, { target_buffer_rgb });
+	this->hm2hm_cu_batched({ hm_nn }, { hm_lin }, { rgb_nn }, { rgb_lin }, { point_mask }, { target_buffer_hm }, { target_buffer_rgb });
 }
 
 void pc2hm::HeightmapGeneratorDL::hm2hm_cu(
 	const HM& hm_nn,
 	const HM& hm_lin,
+	const PointMask& point_mask,
 	CUdeviceptr target_buffer)
 {
 	// cuCtxSynchronize(); // only for timing
 
 	torch::Tensor prediction_tensor = hm2hm_learned(
-		this->model_hm, { hm_nn }, { hm_lin }, {}, {},
+		this->model_hm, { hm_nn }, { hm_lin }, {}, {}, { point_mask },
 		this->res_interp, this->measure_iterations, this->verbose_level);
 
 	// not sure why this xy swap is necessary for CUDA
@@ -277,10 +289,11 @@ pc2hm::HeightmapGeneratorDL::hm2hm_vec(
 	const HM& hm_nn,
 	const HM& hm_lin,
 	const IMG& rgb_nn,
-	const IMG& rgb_lin)
+	const IMG& rgb_lin,
+	const PointMask& point_mask)
 {
 	torch::Tensor prediction_tensor = hm2hm_learned(
-		this->model_rgb, { hm_nn }, { hm_lin }, { rgb_nn }, { rgb_lin },
+		this->model_rgb, { hm_nn }, { hm_lin }, { rgb_nn }, { rgb_lin }, { point_mask },
 		this->res_interp, this->measure_iterations, this->verbose_level);
 
 	if (this->verbose_level > 0)
@@ -314,10 +327,11 @@ pc2hm::HeightmapGeneratorDL::hm2hm_vec(
 
 HM pc2hm::HeightmapGeneratorDL::hm2hm_vec(
 	const HM& hm_nn,
-	const HM& hm_lin)
+	const HM& hm_lin,
+	const PointMask& point_mask)
 {
 	torch::Tensor prediction_tensor = hm2hm_learned(
-		this->model_hm, { hm_nn }, { hm_lin }, {}, {},
+		this->model_hm, { hm_nn }, { hm_lin }, {}, {}, { point_mask },
 		this->res_interp, this->measure_iterations, this->verbose_level);
 
 	if (this->verbose_level > 0)
@@ -337,7 +351,7 @@ HM pc2hm::HeightmapGeneratorDL::hm2hm_vec(
 	return prediction_vector;
 }
 
-Mask pc2hm::HeightmapGeneratorDL::pts2hm_cu(
+FaceMask pc2hm::HeightmapGeneratorDL::pts2hm_cu(
 	std::vector<coord>& local_subsample,
 	std::vector<float>& pts_values,
 	std::vector<RGB>& pts_values_rgb,
@@ -346,29 +360,30 @@ Mask pc2hm::HeightmapGeneratorDL::pts2hm_cu(
 {
 	// interpolate in triangulation
 	std::vector<InterpolationType> interp_types = { InterpolationType::NEAREST, InterpolationType::LINEAR };
-	auto [hm_nn_lin, rgb_nn_lin, grid_points_face] = 
+	auto [hm_nn_lin, rgb_nn_lin, grid_points_face, point_mask] =
 		this->pts2hm(local_subsample, pts_values, interp_types, pts_values_rgb, interp_types);
 
-	this->hm2hm_cu(hm_nn_lin[0], hm_nn_lin[1], rgb_nn_lin[0], rgb_nn_lin[1], target_buffer, target_buffer_rgb);
+	this->hm2hm_cu_batched({ hm_nn_lin[0] }, { hm_nn_lin[1] }, { rgb_nn_lin[0] }, { rgb_nn_lin[1] }, { point_mask }, { target_buffer }, { target_buffer_rgb });
 
 	return grid_points_face;
 }
 
-Mask pc2hm::HeightmapGeneratorDL::pts2hm_cu(
+FaceMask pc2hm::HeightmapGeneratorDL::pts2hm_cu(
 	std::vector<coord>& local_subsample,
 	std::vector<float>& pts_values,
 	CUdeviceptr target_buffer)
 {
 	// interpolate in triangulation
 	std::vector<InterpolationType> interp_types = { InterpolationType::NEAREST, InterpolationType::LINEAR };
-	auto [hm_nn_lin, grid_points_face] = this->pts2hm(local_subsample, pts_values, interp_types);
+	auto [hm_nn_lin, grid_points_face, point_mask] = this->pts2hm(local_subsample, pts_values, interp_types);
 
-	this->hm2hm_cu(hm_nn_lin[0], hm_nn_lin[1], target_buffer);
+	// no RGB images for this path
+	this->hm2hm_cu_batched({ hm_nn_lin[0] }, { hm_nn_lin[1] }, {}, {}, { point_mask }, { target_buffer }, {});
 
 	return grid_points_face;
 }
 
-std::tuple<HM, IMG, Mask>
+std::tuple<HM, IMG, FaceMask>
 pc2hm::HeightmapGeneratorDL::pts2hm_vec(
 	std::vector<coord>& local_subsample,
 	std::vector<float>& pts_values,
@@ -376,20 +391,20 @@ pc2hm::HeightmapGeneratorDL::pts2hm_vec(
 {
 	std::vector<InterpolationType> interp_types = { InterpolationType::NEAREST, InterpolationType::LINEAR };
 
-	auto [hms, imgs, grid_points_face] = this->pts2hm(local_subsample, pts_values, interp_types, pts_values_rgb, interp_types);
+	auto [hms, imgs, grid_points_face, point_mask] = this->pts2hm(local_subsample, pts_values, interp_types, pts_values_rgb, interp_types);
 
-	auto [hm, img] = this->hm2hm_vec(hms[0], hms[1], imgs[0], imgs[1]);
+	auto [hm, img] = this->hm2hm_vec(hms[0], hms[1], imgs[0], imgs[1], point_mask);
 	return std::make_tuple(std::move(hm), std::move(img), std::move(grid_points_face));
 }
 
-std::tuple<HM, Mask>
+std::tuple<HM, FaceMask>
 pc2hm::HeightmapGeneratorDL::pts2hm_vec(
 	std::vector<coord>& local_subsample,
 	std::vector<float>& pts_values)
 {
 	std::vector<InterpolationType> interp_types = { InterpolationType::NEAREST, InterpolationType::LINEAR };
-	auto [hm_interp, Mask] = this->pts2hm(local_subsample, pts_values, interp_types);
-	auto hm = this->hm2hm_vec(hm_interp[0], hm_interp[1]);
+	auto [hm_interp, Mask, point_mask] = this->pts2hm(local_subsample, pts_values, interp_types);
+	auto hm = this->hm2hm_vec(hm_interp[0], hm_interp[1], point_mask);
 
 	return std::make_tuple(std::move(hm), std::move(Mask));
 }

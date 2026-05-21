@@ -135,8 +135,8 @@ int test_triangulation_interpolation(
 {
     std::cout << "Testing interpolation HM" << std::endl;
     HeightmapGenerator hm_gen(params.bb_size, params.res_interp, measure_iterations, 3);
-    auto [hm_nn, hm_nn_f] = hm_gen.pts2hm(params.point_cloud_flat, params.pts_values, InterpolationType::NEAREST);
-    auto [hm_lin, hm_lin_f] = hm_gen.pts2hm(params.point_cloud_flat, params.pts_values, InterpolationType::LINEAR);
+    auto [hm_nn, hm_nn_f, hm_nn_pm] = hm_gen.pts2hm(params.point_cloud_flat, params.pts_values, InterpolationType::NEAREST);
+    auto [hm_lin, hm_lin_f, hm_lin_pm] = hm_gen.pts2hm(params.point_cloud_flat, params.pts_values, InterpolationType::LINEAR);
 	return 0;
 }
 
@@ -199,7 +199,9 @@ int test_cuda_copy(
 		IMGs rgb_nn(num_batches, std::vector<RGB>(hm_gen_dl.get_num_elem_interp()));
 		IMGs rgb_lin(num_batches, std::vector<RGB>(hm_gen_dl.get_num_elem_interp()));
 
-		hm_gen_dl.hm2hm_cu_batched(hm_nn, hm_lin, rgb_nn, rgb_lin, target_buffer_hm, target_buffer_rgb);
+        // create explicit point masks for the synthetic batch (no real points)
+        PointMasks batch_point_masks(num_batches, PointMask(hm_gen_dl.get_num_elem_interp(), 0));
+        hm_gen_dl.hm2hm_cu_batched(hm_nn, hm_lin, rgb_nn, rgb_lin, batch_point_masks, target_buffer_hm, target_buffer_rgb);
     }
 
     // cuCtxSynchronize(); // TODO: test with async
@@ -241,23 +243,24 @@ int test_timings_learned(
     cuMemsetD32(target_buffer_rgb, 0, hm_gen_dl_timing.get_num_elem_dl() * 3);
 
     // HM
-    auto [hm_nn_context, hm_nn_context_f] = hm_gen_context.pts2hm(
+    auto [hm_nn_context, hm_nn_context_f, hm_nn_context_pm] = hm_gen_context.pts2hm(
         params.point_cloud_flat, params.pts_values, InterpolationType::NEAREST);
-    auto [hm_lin_context, hm_lin_context_f] = hm_gen_context.pts2hm(
+    auto [hm_lin_context, hm_lin_context_f, hm_lin_context_pm] = hm_gen_context.pts2hm(
         params.point_cloud_flat, params.pts_values, InterpolationType::LINEAR);
-    auto bound_hm2hm_cu = [hm_gen_dl_timing, hm_nn_context, hm_lin_context, target_buffer_hm]()
-        mutable {hm_gen_dl_timing.hm2hm_cu(hm_nn_context, hm_lin_context, target_buffer_hm); };
+    auto bound_hm2hm_cu = [hm_gen_dl_timing, hm_nn_context, hm_lin_context, hm_lin_context_pm, target_buffer_hm]() mutable {
+        hm_gen_dl_timing.hm2hm_cu(hm_nn_context, hm_lin_context, hm_lin_context_pm, target_buffer_hm);
+    };
     measure_print(bound_hm2hm_cu, "hm2hm_cu() HM warm-up", measure_iterations);
     measure_print(bound_hm2hm_cu, "hm2hm_cu() HM proper", measure_iterations);
     measure_print(bound_hm2hm_cu, "hm2hm_cu() HM again", measure_iterations);
 
     // HM + RGB
     auto interp_types = { InterpolationType::NEAREST, InterpolationType::LINEAR };
-    auto [hms, imgs, Mask] = hm_gen_context.pts2hm(
+    auto [hms, imgs, faceMask, pointMask_rgb] = hm_gen_context.pts2hm(
         params.point_cloud_flat, params.pts_values, interp_types, params.pts_values_rgb, interp_types);
-    auto bound_hm2hm_cu_rgb = [hm_gen_dl_timing, hms, imgs, target_buffer_hm, target_buffer_rgb]()
-		mutable {hm_gen_dl_timing.hm2hm_cu(hms[0], hms[1], imgs[0], imgs[1], 
-            target_buffer_hm, target_buffer_rgb); };
+    auto bound_hm2hm_cu_rgb = [hm_gen_dl_timing, hms, imgs, pointMask_rgb, target_buffer_hm, target_buffer_rgb]() mutable {
+        hm_gen_dl_timing.hm2hm_cu(hms[0], hms[1], imgs[0], imgs[1], pointMask_rgb, target_buffer_hm, target_buffer_rgb);
+    };
     measure_print(bound_hm2hm_cu_rgb, "hm2hm_cu() HM+RGB warm-up", measure_iterations);
     measure_print(bound_hm2hm_cu_rgb, "hm2hm_cu() HM+RGB proper", measure_iterations);
     measure_print(bound_hm2hm_cu_rgb, "hm2hm_cu() HM+RGB again", measure_iterations);
@@ -318,10 +321,12 @@ int test_timings_learned_batched(
 	IMGs rgb_nn(num_batches, std::vector<RGB>(hm_gen_dl_timing.get_num_elem_interp()));
 	IMGs rgb_lin(num_batches, std::vector<RGB>(hm_gen_dl_timing.get_num_elem_interp()));
 
-	hm_gen_dl_timing.hm2hm_cu_batched(hm_nn, hm_lin, rgb_nn, rgb_lin, target_buffer_hm, target_buffer_rgb);
+    PointMasks batch_point_masks_timing(num_batches, PointMask(hm_gen_dl_timing.get_num_elem_interp(), 0));
+    hm_gen_dl_timing.hm2hm_cu_batched(hm_nn, hm_lin, rgb_nn, rgb_lin, batch_point_masks_timing, target_buffer_hm, target_buffer_rgb);
 
-    auto bound_hm2hm_cu_batched = [hm_gen_dl_timing, hm_nn, hm_lin, rgb_nn, rgb_lin, target_buffer_hm, target_buffer_rgb]()
-        mutable {hm_gen_dl_timing.hm2hm_cu_batched(hm_nn, hm_lin, rgb_nn, rgb_lin, target_buffer_hm, target_buffer_rgb); };
+    auto bound_hm2hm_cu_batched = [hm_gen_dl_timing, hm_nn, hm_lin, rgb_nn, rgb_lin, batch_point_masks_timing, target_buffer_hm, target_buffer_rgb]() mutable {
+        hm_gen_dl_timing.hm2hm_cu_batched(hm_nn, hm_lin, rgb_nn, rgb_lin, batch_point_masks_timing, target_buffer_hm, target_buffer_rgb);
+    };
     measure_print(bound_hm2hm_cu_batched, "hm2hm_cu_batched() warm-up", measure_iterations);
     measure_print(bound_hm2hm_cu_batched, "hm2hm_cu_batched() proper", measure_iterations);
     measure_print(bound_hm2hm_cu_batched, "hm2hm_cu_batched() again", measure_iterations);

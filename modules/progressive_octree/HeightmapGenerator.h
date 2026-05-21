@@ -272,7 +272,7 @@ class HeightmapGenerator {
 			
 		}
 		
-		pc2hm::Mask mask;
+		pc2hm::FaceMask mask;
 		{
 
 			using pc2hm::InterpolationType;
@@ -286,11 +286,11 @@ class HeightmapGenerator {
 
 			// interpolate in triangulation
 			vector<InterpolationType> interp_types = { InterpolationType::NEAREST, InterpolationType::LINEAR };
-			auto [hm_nn_lin, rgb_nn_lin, grid_points_face] = 
+			auto [hm_nn_lin, rgb_nn_lin, grid_points_face, point_mask] = 
 				generator.pts2hm(local_subsample, pts_values, interp_types, pts_values_rgb, interp_types);
 
 			double t_start = now();
-			generator.hm2hm_cu(hm_nn_lin[0], hm_nn_lin[1], rgb_nn_lin[0], rgb_nn_lin[1], target_buffer, target_buffer_rgb);
+			generator.hm2hm_cu(hm_nn_lin[0], hm_nn_lin[1], rgb_nn_lin[0], rgb_nn_lin[1], point_mask, target_buffer, target_buffer_rgb);
 
 			double duration = now() - t_start;
 			double millies = duration * 1000.0;

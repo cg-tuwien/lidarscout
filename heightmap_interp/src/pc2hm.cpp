@@ -283,6 +283,21 @@ size_t get_grid_id_for_coords(
 	return p_grid.y * resolution + p_grid.x;
 }
 
+PointMask get_point_mask(const std::vector<coord>& local_subsample, float bb_size, int resolution)
+{
+	int num_points = resolution * resolution;
+	PointMask point_mask(num_points, 0);
+
+	for (int i = 0; i < local_subsample.size(); i += 2)
+	{
+		glm::vec2 p(local_subsample[i], local_subsample[i + 1]);
+		size_t pid = get_grid_id_for_coords(p, bb_size, resolution);
+		point_mask[pid] = 1;
+	}
+
+	return point_mask;
+}
+
 
 inline float interpolate_nearest_hm(
 	KDTree& kdtree_pts,
@@ -323,7 +338,7 @@ void rasterize_triangle_flood_fill(
 	const std::array<glm::vec2, 3>& triangle_pts,
 	const std::vector<glm::vec2>& grid_points,
 	unsigned int pid,
-	Mask& grid_points_face,
+	FaceMask& grid_points_face,
 	unsigned int face_id,
 	std::set<unsigned int>& grid_points_ids_todo_local,
 	std::vector<std::array<float, 3>>& bary_coords,
@@ -416,7 +431,7 @@ get_triangle_circumcircle(std::array<glm::vec2, 3> tri)
 
 void rasterize_triangle(
 	std::vector<std::array<float, 3>>& bary_coords,
-	Mask& grid_points_face,
+	FaceMask& grid_points_face,
 	unsigned int face_id,
 	KDTree& kdtree_pts,
 	const std::array<glm::vec2, 3>& triangle_pts,
@@ -472,7 +487,7 @@ void rasterize_triangle(
 	}
 }
 
-std::tuple<std::vector<glm::vec2>, std::vector<std::array<float, 3>>, Mask>
+std::tuple<std::vector<glm::vec2>, std::vector<std::array<float, 3>>, FaceMask>
 get_interpolation_data(
 	const TriangulationData& tri_info,
 	KDTree& kdtree_pts,
@@ -482,7 +497,7 @@ get_interpolation_data(
 {
 	std::vector<glm::vec2> grid_points = get_grid_points(bb_size, resolution);
 	std::vector<std::array<float, 3>> bary_coords(grid_points.size());
-	Mask grid_points_face(grid_points.size(), -2);  // -2 for not checked, -1 for outside, 0+ for face id
+	FaceMask grid_points_face(grid_points.size(), -2);  // -2 for not checked, -1 for outside, 0+ for face id
 
 	// rasterize triangles with flood fill from their centroid
 	for (unsigned int fi = 0; fi < tri_info.face_vertices.size(); ++fi)
@@ -513,7 +528,7 @@ get_interpolation_data(
 }
 
 void check_padding_triangle_faces(
-	Mask& grid_points_face,
+	FaceMask& grid_points_face,
 	const std::vector<float>& pts_values,
 	const TriangulationData& tri_info,
 	int verbose_level = 0)
@@ -563,7 +578,7 @@ HMs interpolate_grid_hm(
 	const std::vector<glm::vec2>& grid_points,
 	const std::vector<float>& pts_values,
 	std::vector<std::array<float, 3>>& bary_coords,
-	Mask& grid_points_face,
+	FaceMask& grid_points_face,
 	int resolution,
 	int verbose_level = 0)
 {
@@ -616,7 +631,7 @@ IMGs interpolate_grid_rgb(
 	const std::vector<glm::vec2>& grid_points,
 	const std::vector<RGB>& pts_values,
 	std::vector<std::array<float, 3>>& bary_coords,
-	Mask& grid_points_face,
+	FaceMask& grid_points_face,
 	int resolution,
 	int verbose_level = 0)
 {
@@ -706,7 +721,7 @@ pc2hm::HeightmapGenerator::HeightmapGenerator(
 {
 }
 
-std::tuple<HMs, IMGs, Mask>
+std::tuple<HMs, IMGs, FaceMask, PointMask>
 	pc2hm::HeightmapGenerator::pts2hm(
 		std::vector<coord>& local_subsample,
 		std::vector<float>& pts_values_hm,
@@ -739,10 +754,12 @@ std::tuple<HMs, IMGs, Mask>
 
 	remove_padding_triangles(local_subsample, pts_values_hm, pts_values_rgb);
 
-	return std::make_tuple(std::move(heightmaps), std::move(rgbmaps), std::move(grid_points_face));
+	PointMask point_mask = get_point_mask(local_subsample, this->bb_size, this->res_interp);
+
+	return std::make_tuple(std::move(heightmaps), std::move(rgbmaps), std::move(grid_points_face), std::move(point_mask));
 }
 
-std::tuple<HMs, Mask>
+std::tuple<HMs, FaceMask, PointMask>
 pc2hm::HeightmapGenerator::pts2hm(
 		std::vector<coord>& local_subsample,
 		std::vector<float>& pts_values_hm, 
@@ -771,19 +788,21 @@ pc2hm::HeightmapGenerator::pts2hm(
 
 	remove_padding_triangles(local_subsample, pts_values_hm, dummy);
 
-	return std::make_tuple(std::move(heightmaps), std::move(grid_points_face));
+	PointMask point_mask = get_point_mask(local_subsample, this->bb_size, this->res_interp);
+
+	return std::make_tuple(std::move(heightmaps), std::move(grid_points_face), std::move(point_mask));
 }
 
-std::tuple<HM, Mask>
+std::tuple<HM, FaceMask, PointMask>
 pc2hm::HeightmapGenerator::pts2hm(
 	std::vector<coord>& local_subsample,
 	std::vector<float>& pts_values_hm,
 	InterpolationType interp_type)
 {
 	std::vector<InterpolationType> interp_types({ interp_type });
-	auto [heightmaps, grid_points_face] = this->pts2hm(local_subsample, pts_values_hm, interp_types);
+	auto [heightmaps, grid_points_face, point_mask] = this->pts2hm(local_subsample, pts_values_hm, interp_types);
 	HM retval = std::move(heightmaps[0]);
-	return std::make_tuple(std::move(retval), std::move(grid_points_face));
+	return std::make_tuple(std::move(retval), std::move(grid_points_face), std::move(point_mask));
 }
 
 void pc2hm::HeightmapGenerator::output_debug_info(
