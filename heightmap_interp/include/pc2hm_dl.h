@@ -81,12 +81,13 @@ public:
 			CUdeviceptr target_buffer,
 			CUdeviceptr target_buffer_rgb);
 
+    // Fix this for HM-only use
 	// generates a heightmap (Cuda pointer) via interpolation and prediction for a given local subsample
-	std::tuple<FaceMask>
+    /* std::tuple<FaceMask>
 		pts2hm_cu(
 			std::vector<coord>& local_subsample,
 			std::vector<float>& pts_values,
-			CUdeviceptr target_buffer);
+			CUdeviceptr target_buffer);*/
 
 	// generates a heightmap via interpolation and prediction for a given local subsample
 	std::tuple<HM, IMG, FaceMask>

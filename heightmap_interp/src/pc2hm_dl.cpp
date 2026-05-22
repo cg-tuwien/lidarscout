@@ -125,6 +125,7 @@ torch::Tensor hm2hm_learned(
 
 		add_data_to_dict(img_rgb_nn_data, { num_patches, res_interp, res_interp, 3 }, "patch_rgb_nearest", tensor_options, { 0, 3, 1, 2 }, inputs);
 		add_data_to_dict(img_rgb_lin_data, { num_patches, res_interp, res_interp, 3 }, "patch_rgb_linear", tensor_options, { 0, 3, 1, 2 }, inputs);
+        add_data_to_dict(point_mask_data, {num_patches, 1, res_interp, res_interp}, "patch_rgb_mask", tensor_options, {}, inputs);  // same as for HM
 	}
 
 	std::vector<torch::jit::IValue> inputs_vec({ inputs });
@@ -374,7 +375,8 @@ std::tuple<FaceMask> pc2hm::HeightmapGeneratorDL::pts2hm_cu(
 	return grid_points_face;
 }
 
-std::tuple<FaceMask> pc2hm::HeightmapGeneratorDL::pts2hm_cu(
+// Fix this for HM-only use
+/* std::tuple<FaceMask> pc2hm::HeightmapGeneratorDL::pts2hm_cu(
 	std::vector<coord>& local_subsample,
 	std::vector<float>& pts_values,
 	CUdeviceptr target_buffer)
@@ -387,7 +389,7 @@ std::tuple<FaceMask> pc2hm::HeightmapGeneratorDL::pts2hm_cu(
 	this->hm2hm_cu_batched({ hm_nn_lin[0] }, { hm_nn_lin[1] }, {}, {}, { point_mask }, { target_buffer }, {});
 
 	return grid_points_face;
-}
+}*/
 
 std::tuple<HM, IMG, FaceMask>
 pc2hm::HeightmapGeneratorDL::pts2hm_vec(

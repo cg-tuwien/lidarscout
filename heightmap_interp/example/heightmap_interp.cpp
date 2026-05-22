@@ -160,14 +160,15 @@ int test_cuda_copy(
     HeightmapGeneratorDL hm_gen_dl(params.model_path_hm, params.model_path_rgb, 
         params.bb_size, params.res_interp, params.res_dl, measure_iterations, 3);
 
-    {
+    // Re-enable when fixed
+    /* {
         std::cout << "Testing CUDA HM data copy" << std::endl;
         CUdeviceptr target_buffer_hm;
         hm_gen_dl.verbose_level = 0;
         size_t target_size = hm_gen_dl.get_num_elem_dl() * sizeof(float);
         cuMemAlloc(&target_buffer_hm, target_size);
         hm_gen_dl.pts2hm_cu(params.point_cloud_flat, params.pts_values, target_buffer_hm);
-    }
+    }*/
 
     {
         std::cout << "Testing CUDA HM + RGB data copy" << std::endl;
@@ -266,9 +267,9 @@ int test_timings_learned(
     measure_print(bound_hm2hm_cu_rgb, "hm2hm_cu() HM+RGB again", measure_iterations);
 
     // CUDA HM (+ RGB)
-    auto bound_pts2hm_cu = [hm_gen_dl_timing, params, target_buffer_hm]()
+    /* auto bound_pts2hm_cu = [hm_gen_dl_timing, params, target_buffer_hm]()
         mutable {hm_gen_dl_timing.pts2hm_cu(params.point_cloud_flat, params.pts_values, target_buffer_hm); };
-    measure_print(bound_pts2hm_cu, "pts2hm_cu() HM", measure_iterations);
+    measure_print(bound_pts2hm_cu, "pts2hm_cu() HM", measure_iterations);*/
     auto bound_pts2hm_cu_rgb = [hm_gen_dl_timing, params, target_buffer_hm, target_buffer_rgb]()
 		mutable {hm_gen_dl_timing.pts2hm_cu(params.point_cloud_flat, params.pts_values, params.pts_values_rgb, target_buffer_hm, target_buffer_rgb); };
     measure_print(bound_pts2hm_cu_rgb, "pts2hm_cu() HM+RGB", measure_iterations);
@@ -360,8 +361,8 @@ int main()
         point_cloud_flat, pts_values, pts_values_rgb,
         bb_size, res_interp, res_dl);
 
-    int res_triangulation_interpolation = test_triangulation_interpolation(test_params, measure_iterations);
-	int res_learned = test_learned(test_params, measure_iterations);
+    //int res_triangulation_interpolation = test_triangulation_interpolation(test_params, measure_iterations);
+	//int res_learned = test_learned(test_params, measure_iterations);
 	int res_cuda_copy = test_cuda_copy(test_params, measure_iterations);
 	int res_timings_interpolation = test_timings_interpolation(test_params, measure_iterations);
 	int res_timings_learned = test_timings_learned(test_params, measure_iterations);

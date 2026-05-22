@@ -74,7 +74,7 @@ class HeightmapGenerator {
 	 * @param patchCenter the center of the patch, z value is used for normalization
 	 * @param samples the patch samples to generate the height map
 	 */
-	bool generateHeightmap(CUdeviceptr targetBuffer, dvec3 patchCenter, PatchSamples samples) {
+    /* bool generateHeightmap(CUdeviceptr targetBuffer, dvec3 patchCenter, PatchSamples samples) {
 		if (samples.z.size() < 25) {
 			spdlog::warn("not enough samples to generate heightmap (num samples = {})", samples.z.size());
 			return false;
@@ -84,7 +84,7 @@ class HeightmapGenerator {
 		generator.pts2hm_cu(samples.xy, samples.z, targetBuffer);
 
 		return true;
-	}
+	}*/
 
 	void debugGenerateHeightmapRgb(
 		CUdeviceptr targetBuffer, CUdeviceptr targetBufferRGB, 
@@ -440,7 +440,8 @@ class HeightmapGenerator {
 		}
 		std::cout << "\n])\n\n";
 
-		auto [heightmapLinear, hmLinearMask, hmLinearPointMask] = generator.pts2hm(samples.xy, samples.z, pc2hm::InterpolationType::LINEAR);
+		/* auto [heightmapLinear, hmLinearMask, hmLinearPointMask] =
+            generator.pts2hm(samples.xy, samples.z, pc2hm::InterpolationType::LINEAR);
 
 		std::cout << "# heightmap linear\n";
 		std::cout << "hm_linear = np.array([\n";
@@ -464,7 +465,7 @@ class HeightmapGenerator {
 		}
 		std::cout << "\n])\n\n";
 
-		generator.pts2hm_cu(samples.xy, samples.z, targetBuffer);
+		generator.pts2hm_cu(samples.xy, samples.z, targetBuffer);*/
 
 		std::array<float, 64 * 64> heightmapLearned{};
 
