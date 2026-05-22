@@ -94,9 +94,15 @@ torch::Tensor hm2hm_learned(
 	std::vector<float*> img_lin_data(img_lin.size());
 	std::transform(img_lin.begin(), img_lin.end(), img_lin_data.begin(),
 		[](const HM& hm) { return const_cast<float*>(hm.data()); });
+	std::vector<std::vector<float>> point_mask_float(point_mask.size());
 	std::vector<float*> point_mask_data(point_mask.size());
-	std::transform(point_mask.begin(), point_mask.end(), point_mask_data.begin(),
-		[](const PointMask& mask) { return const_cast<uint8_t*>(mask.data()); });
+	for (size_t i = 0; i < point_mask.size(); ++i)
+	{
+		point_mask_float[i].resize(point_mask[i].size());
+		std::transform(point_mask[i].begin(), point_mask[i].end(), point_mask_float[i].begin(),
+			[](uint8_t value) { return static_cast<float>(value); });
+		point_mask_data[i] = point_mask_float[i].data();
+	}
 
 	// package in IValue (Interpreter Value)
 	const long long num_patches = img_nn.size();
@@ -351,7 +357,7 @@ HM pc2hm::HeightmapGeneratorDL::hm2hm_vec(
 	return prediction_vector;
 }
 
-FaceMask pc2hm::HeightmapGeneratorDL::pts2hm_cu(
+std::tuple<FaceMask> pc2hm::HeightmapGeneratorDL::pts2hm_cu(
 	std::vector<coord>& local_subsample,
 	std::vector<float>& pts_values,
 	std::vector<RGB>& pts_values_rgb,
@@ -368,7 +374,7 @@ FaceMask pc2hm::HeightmapGeneratorDL::pts2hm_cu(
 	return grid_points_face;
 }
 
-FaceMask pc2hm::HeightmapGeneratorDL::pts2hm_cu(
+std::tuple<FaceMask> pc2hm::HeightmapGeneratorDL::pts2hm_cu(
 	std::vector<coord>& local_subsample,
 	std::vector<float>& pts_values,
 	CUdeviceptr target_buffer)

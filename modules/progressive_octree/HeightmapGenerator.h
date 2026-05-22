@@ -6,6 +6,8 @@
 #define IPES_HEIGHTMAPGENERATOR_H
 
 #include <vector>
+#include <iomanip>
+#include <sstream>
 
 #include "cuda.h"
 #include "pc2hm_dl.h"
@@ -323,7 +325,7 @@ class HeightmapGenerator {
 		normalizePatchPoints(samples.xy, samples.z, patchCenter);
 
 		// const auto heightmap_96x96 = generator2.pts2hm(samples.xy, samples.z, pc2hm::InterpolationType::LINEAR);
-		auto [heightmap_96x96, heightmapmask] = generator2.pts2hm(samples.xy, samples.z, pc2hm::InterpolationType::LINEAR);
+		auto [heightmap_96x96, heightmapmask, heightmapPointMask] = generator2.pts2hm(samples.xy, samples.z, pc2hm::InterpolationType::LINEAR);
 		
 		// clip to center 64x64 pixels
 		// vector<float> heightmap_64x64(heightmapResolution * heightmapResolution, 0.0f);
@@ -438,7 +440,7 @@ class HeightmapGenerator {
 		}
 		std::cout << "\n])\n\n";
 
-		auto [heightmapLinear, hmLinearMask] = generator.pts2hm(samples.xy, samples.z, pc2hm::InterpolationType::LINEAR);
+		auto [heightmapLinear, hmLinearMask, hmLinearPointMask] = generator.pts2hm(samples.xy, samples.z, pc2hm::InterpolationType::LINEAR);
 
 		std::cout << "# heightmap linear\n";
 		std::cout << "hm_linear = np.array([\n";
@@ -450,7 +452,7 @@ class HeightmapGenerator {
 		}
 		std::cout << "\n])\n\n";
 
-		auto [heightmapNearest, hmNearestMask] = generator.pts2hm(samples.xy, samples.z, pc2hm::InterpolationType::NEAREST);
+		auto [heightmapNearest, hmNearestMask, hmNearestPointMask] = generator.pts2hm(samples.xy, samples.z, pc2hm::InterpolationType::NEAREST);
 
 		std::cout << "# heightmap nearest\n";
 		std::cout << "hm_nearest = np.array([\n";
