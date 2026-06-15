@@ -361,8 +361,8 @@ int main()
         point_cloud_flat, pts_values, pts_values_rgb,
         bb_size, res_interp, res_dl);
 
-    //int res_triangulation_interpolation = test_triangulation_interpolation(test_params, measure_iterations);
-	//int res_learned = test_learned(test_params, measure_iterations);
+    int res_triangulation_interpolation = test_triangulation_interpolation(test_params, measure_iterations);
+	int res_learned = test_learned(test_params, measure_iterations);
 	int res_cuda_copy = test_cuda_copy(test_params, measure_iterations);
 	int res_timings_interpolation = test_timings_interpolation(test_params, measure_iterations);
 	int res_timings_learned = test_timings_learned(test_params, measure_iterations);

@@ -130,8 +130,8 @@ void GLRenderer::init() {
 		}
 
 		// SECOND MONITOR
-		int xpos;
-		int ypos;
+		int xpos=0;
+		int ypos=0;
 		// glfwGetMonitorPos(monitors[2], &xpos, &ypos);
 
 		// if(ypos >= 1100){
