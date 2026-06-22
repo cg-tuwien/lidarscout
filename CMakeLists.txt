@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
-set(CMAKE_CXX_STANDARD 23)
+cmake_policy(SET CMP0091 NEW)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 project(IPES)
 
@@ -18,6 +20,11 @@ add_executable(${PROJECT_NAME}
     modules/progressive_octree/LasLoader.cpp	
     modules/progressive_octree/SimlodLoader.cpp	
 	modules/progressive_octree/main_progressive_octree.cpp)
+
+# link GLEW statically
+target_compile_definitions(${PROJECT_NAME} PRIVATE GLEW_STATIC)
+
+set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
 set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
                                                VS_DEBUGGER_COMMAND           "$<TARGET_FILE:${PROJECT_NAME}>"
@@ -49,6 +56,8 @@ find_package(CUDAToolkit 12.4 REQUIRED)
 find_package(OpenGL REQUIRED)
 
 CPMAddPackage("gh:p-ranav/argparse#v3.0")
+CPMAddPackage("gh:fmtlib/fmt#10.2.1")
+set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
 CPMAddPackage("gh:gabime/spdlog#v1.13.0")
 set(GLFW_INSTALL OFF CACHE BOOL "")
 CPMAddPackage("gh:glfw/glfw#3.3.9")
@@ -59,7 +68,7 @@ CPMAddPackage("gh:nothings/stb#31707d1")
 #CPMAddPackage("gh:ocornut/imgui#v1.90.2")
 #CPMAddPackage("gh:epezent/implot#v0.16")
 
-target_link_libraries(${PROJECT_NAME}
+target_link_libraries(${PROJECT_NAME} PRIVATE
 		argparse::argparse
 		spdlog::spdlog
 		glm::glm
@@ -72,11 +81,13 @@ target_link_libraries(${PROJECT_NAME}
 )
 target_include_directories(${PROJECT_NAME} PRIVATE ${stb_SOURCE_DIR})
 
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
+
 ## laszip
 if(WIN32)
-	target_link_libraries(${PROJECT_NAME} laszip3)
+	target_link_libraries(${PROJECT_NAME} PRIVATE laszip3)
 else(WIN32)
-	target_link_libraries(${PROJECT_NAME} laszip)
+	target_link_libraries(${PROJECT_NAME} PRIVATE laszip)
 endif(WIN32)
 target_include_directories(${PROJECT_NAME} PRIVATE ${LASzip_SOURCE_DIR}/include)
 
@@ -119,7 +130,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_sources(${PROJECT_NAME} PRIVATE
 	libs/implot/implot_items.cpp
 	libs/implot/implot.cpp)
-
 
 # Post-Build
 if (IPES_CreateCUDASymlinks)

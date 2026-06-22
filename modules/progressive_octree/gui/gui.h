@@ -4,9 +4,14 @@ void alignRight(string text) {
 	ImGui::SetCursorPosX(rightBorder - width);
 }
 
+#include <fmt/core.h>
+
 #include "./toolbar.h"
 #include "./memory.h"
 #include "./cameraPaths.h"
+
+using fmt::println;
+using fmt::format;
 
 void makeSettings(shared_ptr<GLRenderer> renderer){
 
@@ -41,11 +46,11 @@ void makeSettings(shared_ptr<GLRenderer> renderer){
 
 		std::stringstream ss;
 		ss << std::setprecision(2) << std::fixed;
-		ss << std::format("// position: {}, {}, {} \n", pos.x, pos.y, pos.z);
-		ss << std::format("renderer->controls->yaw    = {:.3f};\n", controls->yaw);
-		ss << std::format("renderer->controls->pitch  = {:.3f};\n", controls->pitch);
-		ss << std::format("renderer->controls->radius = {:.3f};\n", controls->radius);
-		ss << std::format(
+		ss << format("// position: {}, {}, {} \n", pos.x, pos.y, pos.z);
+		ss << format("renderer->controls->yaw    = {:.3f};\n", controls->yaw);
+		ss << format("renderer->controls->pitch  = {:.3f};\n", controls->pitch);
+		ss << format("renderer->controls->radius = {:.3f};\n", controls->radius);
+		ss << format(
 				"renderer->controls->target = {{ {:.3f}, {:.3f}, {:.3f}, }};\n", target.x, target.y, target.z);
 
 		std::string str = ss.str();
@@ -74,7 +79,7 @@ void makeStats(shared_ptr<GLRenderer> renderer){
 		cuMemGetInfo(&availableMem, &totalMem);
 		size_t unavailableMem = totalMem - availableMem;
 
-		string strProgress = std::format(
+		string strProgress = format(
 				"{:3.1f} / {:3.1f}", double(unavailableMem) / 1'000'000'000.0, double(totalMem) / 1'000'000'000.0);
 		auto progress = static_cast<float>(static_cast<double>(unavailableMem) / static_cast<double>(totalMem));
 		ImGui::ProgressBar(progress, ImVec2(0.f, 0.f), strProgress.c_str());
@@ -88,35 +93,35 @@ void makeStats(shared_ptr<GLRenderer> renderer){
 		string str = "-";
 
 		if (millies > 0.0) {
-			str = std::format("{:.1Lf} ms", millies);
+			str = format("{:.1Lf} ms", millies);
 		}
 
 		return leftPad(str, 15);
 	};
 
-	auto toM = [locale](double number) {
-		string str = format(locale, "{:.1Lf} M", number / 1'000'000.0);
-		return leftPad(str, 14);
-	};
+		auto toM = [locale](double number) {
+			string str = format(locale, "{:.1Lf} M", number / 1'000'000.0);
+			return leftPad(str, 14);
+		};
 
-	auto toB = [locale](double number) {
-		string str = format(locale, "{:.1Lf} B", number / 1'000'000'000.0);
-		return leftPad(str, 14);
-	};
+		auto toB = [locale](double number) {
+			string str = format(locale, "{:.1Lf} B", number / 1'000'000'000.0);
+			return leftPad(str, 14);
+		};
 
-	auto toMB = [locale](double number) {
-		string str = format(locale, "{:.1Lf} MB", number / 1'000'000.0);
-		return leftPad(str, 15);
-	};
-	auto toGB = [locale](double number) {
-		string str = format(locale, "{:.1Lf} GB", number / 1'000'000'000.0);
-		return leftPad(str, 15);
-	};
+		auto toMB = [locale](double number) {
+			string str = format(locale, "{:.1Lf} MB", number / 1'000'000.0);
+			return leftPad(str, 15);
+		};
+		auto toGB = [locale](double number) {
+			string str = format(locale, "{:.1Lf} GB", number / 1'000'000'000.0);
+			return leftPad(str, 15);
+		};
 
-	auto toIntString = [locale](double number) {
-		string str = format(locale, "{:L}", number);
-		return leftPad(str, 10);
-	};
+		auto toIntString = [locale](double number) {
+			string str = format(locale, "{:L}", number);
+			return leftPad(str, 10);
+		};
 
 	double M = 1'000'000.0;
 	double B = 1'000'000'000.0;
@@ -147,7 +152,7 @@ void makeStats(shared_ptr<GLRenderer> renderer){
 		{"world max               ", strWorldMax, strWorldMax},
 		{"world size              ", strWorldSize, strWorldSize},
 		{"tiles                   ", strTiles, strTiles},
-		{"commandQueueCounter     ", toIntString(commandQueueCounter), std::format("{:.1f}", 123.0f)},
+		{"commandQueueCounter     ", toIntString(commandQueueCounter), format("{:.1f}", 123.0f)},
 		{"camera.position         ", strCampos, strCampos},
 		{"camera.target           ", strTarget, strTarget},
 		{"camera.radius           ", strRadius, strRadius},

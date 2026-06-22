@@ -48,13 +48,7 @@ struct CameraPaths{
 				stof(tokens[6]),
 			};
 
-			keyframes.push_back({
-				.time   = time,
-				.yaw    = yaw,
-				.pitch  = pitch,
-				.radius = radius,
-				.target = target,
-			});
+			keyframes.push_back({time,yaw,pitch,radius,target,});
 		}
 		
 		auto gauss = [](float x, float σ, float μ){

@@ -1,6 +1,6 @@
 #include <locale.h>
 #include <filesystem>
-#include <format>
+#include <fmt/core.h>
 #include <iostream>
 #include <queue>
 #include <string>
@@ -12,6 +12,9 @@
 #include "unsuck.hpp"
 
 using namespace std;
+
+using fmt::println;
+using fmt::format;
 
 CUdeviceptr cptr_buffer, cptr_input;
 CudaModularProgram* cuda_program = nullptr;
@@ -108,7 +111,7 @@ void runCudaProgram() {
     cuEventElapsedTime(&total_ms, cevent_start, cevent_end);
 
     cout << "CUDA durations: " << endl;
-    cout << std::format("total:     {:6.1f} ms", total_ms) << endl;
+    cout << format("total:     {:6.1f} ms", total_ms) << endl;
   }
 
   cuCtxSynchronize();

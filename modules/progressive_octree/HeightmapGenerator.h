@@ -17,7 +17,11 @@
 #include "glm/gtx/transform.hpp"
 #include "glm/matrix.hpp"
 
+#include <fmt/core.h>
+
 using glm::dvec3;
+using fmt::println;
+using fmt::format;
 
 class HeightmapGenerator {
 	
@@ -377,12 +381,12 @@ class HeightmapGenerator {
 		std::cout << "import numpy as np\n\n";
 
 		std::cout << "#query point\n";
-		std::cout << "query_point = np.array([" << std::format("{:.10f}", patchCenter.x) << ", " << std::format("{:.10f}", patchCenter.y) << ", " << std::format("{:.10f}", patchCenter.z) << "])\n\n";
+		std::cout << format("query_point = np.array([{:.10f}, {:.10f}, {:.10f}])\n\n", patchCenter.x, patchCenter.y, patchCenter.z);
 
 		std::cout << "# unnormalized samples\n";
 		std::cout << "samples_xy = np.array([\n";
 		for (size_t i = 0; i < samples.xy.size(); ++i) {
-			std::cout << std::format("{:.10f}", samples.xy[i]);
+			std::cout << format("{:.10f}", samples.xy[i]);
 			if (i < samples.xy.size() - 1) {
 				std::cout << ", ";
 			}
@@ -391,7 +395,7 @@ class HeightmapGenerator {
 
 		std::cout << "samples_z = np.array([\n";
 		for (size_t i = 0; i < samples.z.size(); ++i) {
-			std::cout << std::format("{:.10f}", samples.z[i]);
+			std::cout << format("{:.10f}", samples.z[i]);
 			if (i < samples.z.size() - 1) {
 				std::cout << ", ";
 			}
@@ -403,7 +407,7 @@ class HeightmapGenerator {
 		std::cout << "# normalized samples\n";
 		std::cout << "samples_xy_norm = np.array([\n";
 		for (size_t i = 0; i < samples.xy.size(); ++i) {
-			std::cout << std::format("{:.10f}", samples.xy[i]);
+			std::cout << format("{:.10f}", samples.xy[i]);
 			if (i < samples.xy.size() - 1) {
 				std::cout << ", ";
 			}
@@ -412,7 +416,7 @@ class HeightmapGenerator {
 
 		std::cout << "samples_z_norm = np.array([\n";
 		for (size_t i = 0; i < samples.z.size(); ++i) {
-			std::cout << std::format("{:.10f}", samples.z[i]);
+			std::cout << format("{:.10f}", samples.z[i]);
 			if (i < samples.z.size() - 1) {
 				std::cout << ", ";
 			}
@@ -424,7 +428,7 @@ class HeightmapGenerator {
 		std::cout << "# normalized samples with magic scaling\n";
 		std::cout << "samples_xy_norm_scaled = np.array([\n";
 		for (size_t i = 0; i < samples.xy.size(); ++i) {
-			std::cout << std::format("{:.10f}", samples.xy[i]);
+			std::cout << format("{:.10f}", samples.xy[i]);
 			if (i < samples.xy.size() - 1) {
 				std::cout << ", ";
 			}
@@ -433,7 +437,7 @@ class HeightmapGenerator {
 
 		std::cout << "samples_z_norm_scaled = np.array([\n";
 		for (size_t i = 0; i < samples.z.size(); ++i) {
-			std::cout << std::format("{:.10f}", samples.z[i]);
+			std::cout << format("{:.10f}", samples.z[i]);
 			if (i < samples.z.size() - 1) {
 				std::cout << ", ";
 			}
@@ -446,7 +450,7 @@ class HeightmapGenerator {
 		std::cout << "# heightmap linear\n";
 		std::cout << "hm_linear = np.array([\n";
 		for (size_t i = 0; i < heightmapLinear.size(); ++i) {
-			std::cout << std::format("{:.10f}", heightmapLinear[i]);
+			std::cout << format("{:.10f}", heightmapLinear[i]);
 			if (i < heightmapLinear.size() - 1) {
 				std::cout << ", ";
 			}
@@ -458,7 +462,7 @@ class HeightmapGenerator {
 		std::cout << "# heightmap nearest\n";
 		std::cout << "hm_nearest = np.array([\n";
 		for (size_t i = 0; i < heightmapNearest.size(); ++i) {
-			std::cout << std::format("{:.10f}", heightmapNearest[i]);
+			std::cout << format("{:.10f}", heightmapNearest[i]);
 			if (i < heightmapNearest.size() - 1) {
 				std::cout << ", ";
 			}
@@ -474,7 +478,7 @@ class HeightmapGenerator {
 		std::cout << "# heightmap learned\n";
 		std::cout << "hm_learned = np.array([\n";
 		for (size_t i = 0; i < heightmapLearned.size(); ++i) {
-			std::cout << std::format("{:.10f}", heightmapLearned[i]);
+			std::cout << format("{:.10f}", heightmapLearned[i]);
 			if (i < heightmapLearned.size() - 1) {
 				std::cout << ", ";
 			}

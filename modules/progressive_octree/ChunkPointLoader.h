@@ -9,29 +9,23 @@
 #include <algorithm>
 #include <execution>
 #include <atomic>
-#include <format>
+
+#include <fmt/core.h>
 
 #include <glm/glm.hpp>
 
 #include "unsuck.hpp"
-
-// namespace laszip_stuff{
-// 	#include "ArithmeticDecoder.h"
-// 	#include "IntegerCompressor.h"
-// };
 
 using std::vector;
 using std::string;
 using std::function;
 using std::atomic_uint64_t;
 using std::for_each;
-using std::println;
-using std::jthread;
-using std::format;
+using fmt::println;
+using fmt::format;
+using std::thread;
 using std::lock_guard;
 using std::mutex;
-
-// have to put it in a namespace to avoid duplicate symbols from including laszip files
 
 namespace icp2{
 
@@ -77,7 +71,6 @@ struct ChunkPointLoader{
 	vector<vector<LazChunk>> perTileLazChunks;
 	vector<int64_t> indices;
 
-
 	ChunkPointLoader(
 		vector<string> files,
 		function<void(const vector<icp::LasFileInfo>&)> lasFileInfoCallback,
@@ -103,7 +96,6 @@ struct ChunkPointLoader{
 		loadFileInfo();
 	}
 
-
 	~ChunkPointLoader(){
 
 	}
@@ -119,8 +111,6 @@ struct ChunkPointLoader{
 		atomic_uint64_t counter = 0;
 		for_each(std::execution::par, indices.begin(), indices.end(), [&](int64_t index) {
 
-			// lock_guard<mutex> lock(mtx);
-			
 			string file = files[index];
 			LazMetadata metadata = metadatas[index];
 			vector<LazChunk>& chunks = perTileLazChunks[index];
@@ -158,14 +148,6 @@ struct ChunkPointLoader{
 				double y = double(Y) * metadata.scale.y + metadata.offset.y;
 				double z = double(Z) * metadata.scale.z + metadata.offset.z;
 
-				// bool isOutsideX = x < metadata.min.x || x > metadata.max.x;
-				// bool isOutsideY = y < metadata.min.y || y > metadata.max.y;
-				// bool isOutsideZ = z < metadata.min.z || z > metadata.max.z;
-				//if(isOutsideX || isOutsideY || isOutsideZ){
-				//	println("outside! i = {}, byteOffset: {}, byteSize: {}", i, chunk.byteOffset, chunk.byteSize);
-				//	int a = 10;
-				//}
-
 				uint16_t R = buffer.get<uint16_t>(offset_rgb + 0);
 				uint16_t G = buffer.get<uint16_t>(offset_rgb + 2);
 				uint16_t B = buffer.get<uint16_t>(offset_rgb + 4);
@@ -187,10 +169,7 @@ struct ChunkPointLoader{
 
 			fclose(pFile);
 
-			//int64_t count = counter.fetch_add(1);
-			//bool isLast = count == files.size();
 			bool isLast = false;
-
 			
 			chunkPointsCallback(points, isLast);
 		});
@@ -238,7 +217,7 @@ struct ChunkPointLoader{
 
 	void loadFileInfo(){
 
-		jthread t([=](){
+		std::thread t([=](){
 
 			double t_start = now();
 
@@ -324,10 +303,6 @@ struct ChunkPointLoader{
 		});
 
 		t.detach();
-
-		
-
-
 	}
 
 	void sortRemainingFiles(const std::function<bool(const std::optional<icp::ChunkBounds>&, const std::optional<icp::ChunkBounds>&)>& compareOp){

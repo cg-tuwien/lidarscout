@@ -1,14 +1,14 @@
-
 #pragma once
 
 #include <string>
 #include <unordered_map>
 #include <map>
 #include <vector>
-#include <source_location>
 
 #include "OrbitControls.h"
 #include "unsuck.hpp"
+
+#include <fmt/core.h>
 
 #include "glm/common.hpp"
 
@@ -17,6 +17,8 @@
 #include "cuda.h"
 #include "cuda_runtime.h"
 
+using fmt::println;
+using fmt::format;
 
 using namespace std;
 
@@ -42,14 +44,9 @@ struct CURuntime{
 		
 	}
 
-	static void check(CUresult result, source_location location = source_location::current()){
+	static void check(CUresult result){
 		if(result != CUDA_SUCCESS){
-			//cout << "cuda error code: " << result << endl;
-
 			uint32_t code = result;
-			string filename = location.file_name();
-			uint32_t line = location.line();
-			string functionName = location.function_name();
 
 			const char* errorName;
 			cuGetErrorName(result, &errorName);
@@ -58,7 +55,6 @@ struct CURuntime{
 			cuGetErrorString(result, &errorString);
 
 			println("ERROR(CUDA): code: {}, name: '{}', string: '{}'", code, errorName, errorString);
-			println("    at file: {}, line: {}, function: {}", filename, line, functionName);
 		}
 	};
 
@@ -75,9 +71,6 @@ struct CURuntime{
 		CUdeviceptr cptr;
 
 		cuMemAlloc(&cptr, size);
-
-		// string msg = format(getSaneLocale(), "cuMemAlloc {:15L} bytes for '{}'", size, label);
-        // println("{}", msg);
 
 		Allocation entry = {label, cptr, size};
 		allocations.push_back(entry);
@@ -120,18 +113,6 @@ struct CURuntime{
 
 	static void free(shared_ptr<CudaVirtualMemory> memory){
 		println("TODO");
-		// memory->destroy();
-
-		// int index = -1;
-		// for(int i = 0; i < allocations_virtual.size(); i++){
-		// 	if(allocations_virtual[i].memory == memory){
-		// 		index = i;
-		// 	}
-		// }
-
-		// if(index != -1){
-		// 	allocations_virtual.erase(allocations_virtual.begin() + index);
-		// }
 	}
 
 	static void print(){
@@ -178,7 +159,5 @@ struct CURuntime{
 		}
 
 	}
-
-	
 
 };

@@ -1,5 +1,6 @@
 #include "pc2hm_dl.h"
 
+//#include <mutex>
 #include <numeric>
 #include <memory>
 #include <unordered_map>
@@ -79,6 +80,10 @@ torch::Tensor hm2hm_learned(
     int measure_iterations,
     int verbose_level)
 {
+	// is handled with batching
+    //static std::mutex gpu_mutex;
+    //std::lock_guard<std::mutex> lock(gpu_mutex);
+
     // InferenceMode for better speed
     c10::InferenceMode guard(true);
 
@@ -167,7 +172,8 @@ pc2hm::HeightmapGeneratorDL::HeightmapGeneratorDL(
         std::string error_msg = "HM Model does not exist: " + model_file_hm + " Abs Path: " + std::filesystem::absolute(model_file_hm).string();
         throw std::runtime_error(error_msg);
     }
-
+    
+    std::cout << "Loading PyTorch..." << std::endl;
     torch::jit::script::Module module_script;
     try
     {
@@ -240,10 +246,16 @@ void pc2hm::HeightmapGeneratorDL::hm2hm_cu_batched(
 	// copy data from libtorch memory arena to GPU buffer
 	// -> caller owns data
     const int num_patches = hm_nn.size();
-	for (int i = 0; i < num_patches; ++i)
-	{
-		cuMemcpy(target_buffer_hm[i], CUdeviceptr(pred_hm.data_ptr()), pred_hm.numel() * sizeof(float));
-		cuMemcpy(target_buffer_rgb[i], CUdeviceptr(pred_rgb.data_ptr()), pred_rgb.numel() * sizeof(float));
+    const size_t elements_per_hm = pred_hm.numel() / num_patches;
+    const size_t elements_per_rgb = pred_rgb.numel() / num_patches;
+
+    // Cast to float pointers for safe pointer arithmetic
+    float* hm_ptr = pred_hm.data_ptr<float>();
+    float* rgb_ptr = pred_rgb.data_ptr<float>();
+
+    for (int i = 0; i < num_patches; ++i) {
+		cuMemcpy(target_buffer_hm[i], CUdeviceptr(hm_ptr + i * elements_per_hm), elements_per_hm * sizeof(float));
+		cuMemcpy(target_buffer_rgb[i], CUdeviceptr(rgb_ptr + i * elements_per_rgb), elements_per_rgb * sizeof(float));
     }
 
     // TODO: make async with stream. use libtorch stream?

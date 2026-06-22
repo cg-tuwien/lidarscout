@@ -11,12 +11,16 @@
 #include "instant_chunk_points.h"
 #include "spdlog/spdlog.h"
 
+auto ends_with = [](const std::string& str, const std::string& suffix) {
+    return str.size() >= suffix.size() && str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+};
+
 std::vector<std::string> listFiles(const std::string& directory) {
 	std::vector<std::string> paths = {};
 	for (const auto& file : std::filesystem::directory_iterator(directory)) {
 		std::string lower = file.path().extension().string();
 		std::transform(lower.begin(), lower.end(), lower.begin(), [](auto c) { return std::tolower(c); });
-		if (lower.ends_with("laz") || lower.ends_with("las")) {
+        if (ends_with(lower, "laz") || ends_with(lower, "las")) {
 			paths.emplace_back(file.path().string());
 		}
 	}

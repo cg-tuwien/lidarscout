@@ -1,7 +1,7 @@
 ﻿cmake_minimum_required (VERSION 3.12)
 # See readme.md for manual dependencies
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
 project(hm_interp)
 set(EXEC_NAME "hm_interp_test")
@@ -42,8 +42,8 @@ target_link_libraries(${EXEC_NAME} ${PROJECT_NAME})
 
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
-    set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 20)
-    set_property(TARGET ${EXEC_NAME} PROPERTY CXX_STANDARD 20)
+    set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
+    set_property(TARGET ${EXEC_NAME} PROPERTY CXX_STANDARD 17)
 endif()
 
 
@@ -73,12 +73,15 @@ if (MSVC)
     if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
         message(STATUS "debug")
         set(LIBTORCH_URL https://download.pytorch.org/libtorch/cu124/libtorch-win-shared-with-deps-debug-2.5.1%2Bcu124.zip)
+        set(LIBTORCH_PKG_NAME LIBTORCH_DEBUG)
     else()
         message(STATUS "release")
         set(LIBTORCH_URL https://download.pytorch.org/libtorch/cu124/libtorch-win-shared-with-deps-2.5.1%2Bcu124.zip)
+        set(LIBTORCH_PKG_NAME LIBTORCH_RELEASE)
     endif()
 else() # linux
     set(LIBTORCH_URL https://download.pytorch.org/libtorch/cu124/libtorch-cxx11-abi-shared-with-deps-2.5.1%2Bcu124.zip)
+	set(LIBTORCH_PKG_NAME LIBTORCH_LINUX)
 endif()
 
 CPMAddPackage("gh:libuv/libuv#v1.44.2")
@@ -107,12 +110,12 @@ set(USE_MKLDNN OFF)
 
 # use libtorch as package
 CPMAddPackage(
-    NAME LIBTORCH
+    NAME ${LIBTORCH_PKG_NAME}
     VERSION 2.5.1
     URL ${LIBTORCH_URL}
     DOWNLOAD_ONLY TRUE)
 
-set(PYTORCH_DIR ${LIBTORCH_SOURCE_DIR})
+set(PYTORCH_DIR ${${LIBTORCH_PKG_NAME}_SOURCE_DIR})
 set(CMAKE_PREFIX_PATH "${PYTORCH_DIR}" "${CMAKE_PREFIX_PATH}")
 set(Torch_DIR ${PYTORCH_DIR}/share/cmake/Torch)
 

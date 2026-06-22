@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
-#include <format>
+//#include <format>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -20,7 +20,7 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <print>
+#include <fmt/core.h>
 
 using std::cout;
 using std::endl;
@@ -39,7 +39,7 @@ using std::thread;
 using std::to_string;
 using std::vector;
 using std::chrono::high_resolution_clock;
-using std::println;
+using fmt::println;
 
 namespace fs = std::filesystem;
 

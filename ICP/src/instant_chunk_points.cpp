@@ -1,7 +1,3 @@
-//
-// Created by lukas on 02.05.24.
-//
-
 #include <future>
 
 #include "instant_chunk_points.h"
@@ -54,7 +50,7 @@ namespace icp {
 					auto [points, bounds] = f.get();
 					chunkPoints.insert(chunkPoints.end(), points.begin(), points.end());
 					for (const auto& [file, sample] : bounds) {
-						if (chunkBoundsSamples.contains(file)) {
+						if (chunkBoundsSamples.count(file) > 0) {
 							chunkBoundsSamples[file].color[0] += sample.color[0];
 							chunkBoundsSamples[file].color[1] += sample.color[1];
 							chunkBoundsSamples[file].color[2] += sample.color[2];

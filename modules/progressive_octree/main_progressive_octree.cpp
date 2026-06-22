@@ -1,11 +1,11 @@
 #include <clocale>
 #include <deque>
 #include <filesystem>
-#include <format>
+//#include <format>
 #include <iostream>
 #include <mutex>
 #include <optional>
-#include <print>
+#include <fmt/core.h>
 #include <queue>
 #include <shared_mutex>
 #include <string>
@@ -63,6 +63,8 @@ using glm::dvec4;
 using glm::mat4;
 
 using std::snprintf;
+using fmt::println;
+using fmt::format;
 
 namespace fs = fs;
 
@@ -134,6 +136,8 @@ struct LasTileChunkPointData {
 	uint32_t numChunkPointsLoaded = 0;
 	std::atomic_int32_t numExpectedChunkPoints{-1};
 	vector<HeightmapCoords> overlappingPatches{};
+
+    LasTileChunkPointData(string p) : path(p) {}
 };
 
 struct Chunk_HostData {
@@ -260,7 +264,7 @@ optional<Task_LoadChunk> getLoadChunkTask() {
 	} else {
 		Task_LoadChunk task = tasks_loadChunk.front();
 		tasks_loadChunk.pop_front();
-		return make_optional<Task_LoadChunk>(task);
+		return Task_LoadChunk(task);
 	}
 }
 
@@ -271,7 +275,7 @@ optional<Task_UploadChunk> getUploadChunkTask() {
 	} else {
 		Task_UploadChunk task = tasks_uploadChunk.front();
 		tasks_uploadChunk.pop_front();
-		return make_optional<Task_UploadChunk>(task);
+		return Task_UploadChunk(task);
 	}
 }
 
@@ -379,8 +383,8 @@ struct PatchHost {
 
 	size_t numChunkPoints() {
 		return std::accumulate(
-			chunkPointSectors.cbegin(), chunkPointSectors.cend(), 0, [](size_t acc, auto& sectors) {
-				return acc + std::accumulate(sectors.cbegin(), sectors.cend(), 0, [](size_t acc, auto& s) {
+			chunkPointSectors.cbegin(), chunkPointSectors.cend(), size_t{0}, [](size_t acc, auto& sectors) {
+				return acc + std::accumulate(sectors.cbegin(), sectors.cend(), size_t{0}, [](size_t acc, auto& s) {
 						return acc + s.size();
 					});
 			});
@@ -420,8 +424,8 @@ vector<std::pair<HeightmapCoords, vector<uint2>>> getNeighboringRegions(
 			if (x == 0 && y == 0) {
 				continue;
 			}
-			HeightmapCoords neighborTile{.x = tileCoords.x + x, .y = tileCoords.y + y};
-			if (!heightmaps.contains(neighborTile)) {
+			HeightmapCoords neighborTile{tileCoords.x + x, tileCoords.y + y};
+			if (heightmaps.count(neighborTile) == 0) {
 				continue;
 			}
 			if (y == -1) {
@@ -462,9 +466,9 @@ HeightmapGenerator::PatchSamples getPatchPoints(HeightmapCoords& patchCoords) {
 	for(int x : {-1, 0, 1})
 	for(int y : {-1, 0, 1})
 	{
-        HeightmapCoords neighborTile{.x = patchCoords.x + x, .y = patchCoords.y + y};
+        HeightmapCoords neighborTile{patchCoords.x + x, patchCoords.y + y};
 
-		if (!heightmaps.contains(neighborTile)) continue;
+		if (heightmaps.count(neighborTile) == 0) continue;
 
 		tileSectors.push_back({neighborTile, {{0, 0}, {0, 1}, {0, 2}, {1, 0}, {1, 1}, {1, 2}, {2, 0}, {2, 1}, {2, 2}}});
 	}
@@ -560,12 +564,12 @@ optional<HeightmapGenerationTask> getHeightmapGenerationTask() {
 
 			Patch& tile = patches[heightmaps[coords].patchIndex];
 
-			return make_optional<HeightmapGenerationTask>(
-					coords,
-					(CUdeviceptr)tile.heightmap,
-					(CUdeviceptr)tile.texture,
-					// (CUdeviceptr)tile.dbgChunkPoints,
-					getPatchPoints(coords));
+			return HeightmapGenerationTask{
+                coords,
+                (CUdeviceptr)tile.heightmap,
+                (CUdeviceptr)tile.texture,
+                // (CUdeviceptr)tile.dbgChunkPoints,
+                getPatchPoints(coords)};
 		}
 	}
 
@@ -1169,9 +1173,8 @@ void renderCUDA(shared_ptr<GLRenderer>& renderer) {
 			&cptr_deviceState, &patches, &las, &cptr_patchesAsTrianglesQueue, &triangles,
 			&cptr_sparsePointers
 			};
-		OptionalLaunchSettings launchArgs = {
-			.blocksize = 64,
-		};
+		OptionalLaunchSettings launchArgs;
+		launchArgs.blocksize = 64;
 		cuda_program->launchCooperative("kernel_render_patches_triangles", args, launchArgs);
 	}
 
@@ -1374,7 +1377,7 @@ bool aabbIncludes(vec3 min, vec3 max, Point& point) {
 }
 
 bool addNewPatch(HeightmapCoords& coords) {
-	if (!heightmaps.contains(coords)) {
+	if (heightmaps.count(coords) == 0) {
 		vec2 offset = coords.min();
 		vec2 tileMax = coords.max();
 
@@ -1389,17 +1392,19 @@ bool addNewPatch(HeightmapCoords& coords) {
 		heightmaps[coords].chunkPointsBuffer = cptr_chunkPointsBuffer + patchID * MAX_CHUNK_POINTS_PER_PATCH * sizeof(Point);
 		// cuMemAlloc(&heightmaps[coords].chunkPointsBuffer, MAX_CHUNK_POINTS_PER_PATCH * sizeof(Point));
 
-		patches.push_back(Patch{
-			.min = offset,
-			.max = tileMax,
-			.gridCoords = int2{coords.x, coords.y},
-			.patchIndex = heightmaps[coords].patchIndex,
-			.numPoints = 0,
-			.hasHeightmap = false,
-            .heightmap = (float*)(cptr_heightmaps + (heightmapGenerator->heightmapBufferSize() * heightmaps[coords].patchIndex)),
-			.texture = (uint32_t*)(cptr_textures + (textureByteSize * heightmaps[coords].patchIndex)),
-			.points = (Point*)heightmaps[coords].chunkPointsBuffer,
-		});
+		Patch p;
+        p.min = offset;
+        p.max = tileMax;
+        p.gridCoords = int2{coords.x, coords.y};
+        p.patchIndex = heightmaps[coords].patchIndex;
+        p.numPoints = 0;
+        p.hasHeightmap = false;
+        p.heightmap =
+            (float*)(cptr_heightmaps + (heightmapGenerator->heightmapBufferSize() * heightmaps[coords].patchIndex));
+        p.texture = (uint32_t*)(cptr_textures + (textureByteSize * heightmaps[coords].patchIndex));
+        p.points = (Point*)heightmaps[coords].chunkPointsBuffer;
+
+        patches.push_back(p);
 
 
 
@@ -1442,8 +1447,8 @@ void addChunkPoints(const vector<icp::Point>& points) {
 		point.color = p.color;
 
 		HeightmapCoords coords{
-				.x = static_cast<int32_t>(std::floor(point.x / heightmapSizeF)),
-				.y = static_cast<int32_t>(std::floor(point.y / heightmapSizeF)),
+				static_cast<int32_t>(std::floor(point.x / heightmapSizeF)),
+				static_cast<int32_t>(std::floor(point.y / heightmapSizeF))
 		};
 
 		lock_guard<mutex> lock(mtx_heightmaps);
@@ -1570,22 +1575,23 @@ void initializeTiles(GLRenderer& renderer, const vector<icp::LasFileInfo>& tileB
 
 		// uint64_t totalPoints = 0;
 		for (auto& [path, bounds, numPoints] : tileBounds) {
-			tiles.push_back(Tile{
-					.min = vec3{
-							float(bounds.min.x - worldMin.x),
-							float(bounds.min.y - worldMin.y),
-							float(bounds.min.z - 0.0f * worldMin.z),
-						},
-					.max = vec3{
-							float(bounds.max.x - worldMin.x),
-							float(bounds.max.y - worldMin.y),
-							float(bounds.max.z - 0.0f * worldMin.z),
-						},
-					.color = bounds.color,
-					.numPoints = uint32_t(numPoints),
-					.numPointsLoaded = 0,
-					.state = STATE_EMPTY,
-			});
+			Tile t;
+			t.min = vec3{
+				float(bounds.min.x - worldMin.x),
+				float(bounds.min.y - worldMin.y),
+				float(bounds.min.z - 0.0f * worldMin.z),
+			};
+			t.max = vec3{
+				float(bounds.max.x - worldMin.x),
+				float(bounds.max.y - worldMin.y),
+				float(bounds.max.z - 0.0f * worldMin.z),
+			};
+			t.color = bounds.color;
+			t.numPoints = uint32_t(numPoints);
+			t.numPointsLoaded = 0;
+			t.state = STATE_EMPTY;
+
+			tiles.push_back(t);
 			tilePaths.push_back(path);
 			lasTilePathsToTileIds.insert({path, tiles.size() - 1});
 			lasTileChunkPointData.emplace_back(std::make_unique<LasTileChunkPointData>(path));
@@ -1594,23 +1600,24 @@ void initializeTiles(GLRenderer& renderer, const vector<icp::LasFileInfo>& tileB
 
 			uint32_t numChunks = (numPoints + CHUNK_SIZE - 1) / CHUNK_SIZE;
 			for (uint32_t chunkIndex = 0; chunkIndex < numChunks; ++chunkIndex) {
-				chunks.push_back(Chunk{
-					.min = tiles.back().min,
-					.max = tiles.back().max,
-					.tileID = static_cast<uint32_t>(tiles.size() - 1),
-					.chunkIndex = chunkIndex,
-					.hasUpdatedTexture = 0,
-					.color = tiles.back().color,
-					.numPoints = std::min(static_cast<uint32_t>(numPoints) - (chunkIndex * CHUNK_SIZE), CHUNK_SIZE),
-					.numPointsLoaded = 0,
-					.state = STATE_EMPTY,
-					.contributedToHeightmap = 0,
-				});
+				Chunk c;
+				c.min = tiles.back().min;
+				c.max = tiles.back().max;
+				c.tileID = static_cast<uint32_t>(tiles.size() - 1);
+				c.chunkIndex = chunkIndex;
+				c.hasUpdatedTexture = 0;
+				c.color = tiles.back().color;
+				c.numPoints = std::min(static_cast<uint32_t>(numPoints) - (chunkIndex * CHUNK_SIZE), CHUNK_SIZE);
+				c.numPointsLoaded = 0;
+				c.state = STATE_EMPTY;
+				c.contributedToHeightmap = 0;
+				chunks.push_back(c);
+
 				chunks_hostData.push_back(Chunk_HostData{
-					.tileID = chunks.back().tileID,
-					.chunkIndex = chunks.back().chunkIndex,
-					.isLoading = false,
-					.isLoaded = false,
+					chunks.back().tileID,
+					chunks.back().chunkIndex,
+					false,
+					false
 				});
 			}
 
@@ -1764,7 +1771,7 @@ void onNewFiles(GLRenderer& renderer, vector<string> files) {
 		[](const vector<icp::ChunkTableInfo>& chunkTableInfos) {
 			// chunk tables loaded
 			for (auto& chunkTableInfo : chunkTableInfos) {
-				if (lasTilePathsToTileIds.contains(chunkTableInfo.path)) {
+				if (lasTilePathsToTileIds.count(chunkTableInfo.path) > 0) {
 					lasTileChunkPointData[lasTilePathsToTileIds[chunkTableInfo.path]]->numExpectedChunkPoints =
 							static_cast<int32_t>(chunkTableInfo.numChunkPoints);
 				} else {
@@ -1798,223 +1805,247 @@ void onNewFiles(GLRenderer& renderer, vector<string> files) {
 		});
 }
 
-std::jthread spawnLoader(atomic_bool& isClosing) {
-	return std::jthread([&]() {
-		while (!isClosing) {
-			using namespace std::chrono_literals;
-			std::this_thread::sleep_for(1ms);
+std::thread spawnLoader(atomic_bool& isClosing) {
+	std::atomic_bool* pClosing = &isClosing; // Store as explicit pointer
 
-			if (!boundsAreValid) {
+	return std::thread([pClosing]() { // Capture the pointer by value
+		try {
+			while (!(*pClosing)) { // Dereference the pointer
+				using namespace std::chrono_literals;
 				std::this_thread::sleep_for(1ms);
-			}
 
-			// only acquire lock if we really have some work to do
-			std::shared_lock<shared_mutex> lock(mtx_loaders);
-			if (auto task = getLoadChunkTask(); task.has_value()) {
-
-				// Load chunk data
-				Tile tile = tiles[task->tileID];
-				Chunk& chunk = chunks[task->chunkID];
-				Chunk_HostData& hostData = chunks_hostData[task->chunkID];
-				string file = tilePaths[task->tileID];
-
-				// println("loading chunk. tileID: {:6}, chunkID: {:6}, file: {}", task->tileID, task->chunkID, file);
-
-				uint32_t firstPoint = task->chunkIndex * CHUNK_SIZE;
-				int numPoints = std::min(int(tile.numPoints - firstPoint), int(CHUNK_SIZE));
-				auto buffer = make_shared<Buffer>(sizeof(Point) * numPoints);
-
-				if (iEndsWith(file, "las")) {
-					LasHeader header = loadHeader(file);
-					double translation[3] = {-boxMin.x, -boxMin.y, -boxMin.z};
-					double boundsMax[3] = {boxSize.x, boxSize.y, boxSize.z};
-					loadLasNative(file, header, firstPoint, numPoints, buffer->data, translation, boundsMax);
-				} else if (iEndsWithAny(file, "laz")) {
-					laszip_POINTER laszip_reader = nullptr;
-					laszip_header* lazHeader = nullptr;
-					laszip_point* laz_point = nullptr;
-
-					laszip_BOOL is_compressed;
-					laszip_BOOL request_reader = true;
-
-					laszip_create(&laszip_reader);
-					laszip_request_compatibility_mode(laszip_reader, request_reader);
-					laszip_open_reader(laszip_reader, file.c_str(), &is_compressed);
-
-					laszip_get_header_pointer(laszip_reader, &lazHeader);
-					laszip_get_point_pointer(laszip_reader, &laz_point);
-					laszip_seek_point(laszip_reader, firstPoint);
-
-					int format = lazHeader->point_data_format;
-					int rgbOffset = 0;
-					if(format ==  2) rgbOffset = 20;
-					if(format ==  3) rgbOffset = 20;
-					if(format ==  5) rgbOffset = 28;
-					if(format ==  6) rgbOffset = 30;
-					if(format ==  7) rgbOffset = 30;
-					if(format ==  8) rgbOffset = 30;
-					if(format == 10) rgbOffset = 30;
-
-					// println("laszp boxMin: {}, {}", boxMin.x, boxMin.y);
-
-					auto* pTarget = (Point*)buffer->data;
-					for (int i = 0; i < numPoints; i++) {
-						double XYZ[3];
-						laszip_read_point(laszip_reader);
-						laszip_get_coordinates(laszip_reader, XYZ);
-
-						Point point{};
-						point.x = std::clamp(float(XYZ[0] - boxMin.x), 0.0f, boxSize.x);
-						point.y = std::clamp(float(XYZ[1] - boxMin.y), 0.0f, boxSize.y);
-						// point.z = std::clamp(float(XYZ[2] - boxMin.z), 0.0f, boxSize.z);
-						// don't change z value
-						point.z = XYZ[2];
-
-						auto rgb = laz_point->rgb;
-						if(rgbOffset != 0){
-							point.rgba[0] = rgb[0] > 255 ? rgb[0] / 256 : rgb[0];
-							point.rgba[1] = rgb[1] > 255 ? rgb[1] / 256 : rgb[1];
-							point.rgba[2] = rgb[2] > 255 ? rgb[2] / 256 : rgb[2];
-						}
-
-						pTarget[i] = point;
-					}
-					laszip_close_reader(laszip_reader);
-				} else {
-					spdlog::warn("Tile is not a LAS/LAZ file {}", file);
-					continue;
+				if (!boundsAreValid) {
+					std::this_thread::sleep_for(1ms);
 				}
 
-				// Create Upload Task
-				scheduleUploadTask(Task_UploadChunk{
-						.tileID = task->tileID,
-						.chunkIndex = task->chunkIndex,
-						.chunkID = task->chunkID,
-						.points = buffer,
-						.numPoints = numPoints,
-				});
+				// only acquire lock if we really have some work to do
+				std::shared_lock<shared_mutex> lock(mtx_loaders);
+				if (auto task = getLoadChunkTask(); task.has_value()) {
 
-				// todo: maybe that needs to be synchronized - I don't know yet what this does
-				hostData.isLoading = false;
-				hostData.isLoaded = true;
+					// Load chunk data
+					Tile tile = tiles[task->tileID];
+					Chunk& chunk = chunks[task->chunkID];
+					Chunk_HostData& hostData = chunks_hostData[task->chunkID];
+					string file = tilePaths[task->tileID];
+
+					// println("loading chunk. tileID: {:6}, chunkID: {:6}, file: {}", task->tileID, task->chunkID, file);
+
+					uint32_t firstPoint = task->chunkIndex * CHUNK_SIZE;
+					int numPoints = std::min(int(tile.numPoints - firstPoint), int(CHUNK_SIZE));
+					auto buffer = make_shared<Buffer>(sizeof(Point) * numPoints);
+
+					if (iEndsWith(file, "las")) {
+						LasHeader header = loadHeader(file);
+						double translation[3] = {-boxMin.x, -boxMin.y, -boxMin.z};
+						double boundsMax[3] = {boxSize.x, boxSize.y, boxSize.z};
+						loadLasNative(file, header, firstPoint, numPoints, buffer->data, translation, boundsMax);
+					} else if (iEndsWithAny(file, "laz")) {
+						laszip_POINTER laszip_reader = nullptr;
+						laszip_header* lazHeader = nullptr;
+						laszip_point* laz_point = nullptr;
+
+						laszip_BOOL is_compressed;
+						laszip_BOOL request_reader = true;
+
+						laszip_create(&laszip_reader);
+						laszip_request_compatibility_mode(laszip_reader, request_reader);
+						laszip_open_reader(laszip_reader, file.c_str(), &is_compressed);
+
+						laszip_get_header_pointer(laszip_reader, &lazHeader);
+						laszip_get_point_pointer(laszip_reader, &laz_point);
+						laszip_seek_point(laszip_reader, firstPoint);
+
+						int format = lazHeader->point_data_format;
+						int rgbOffset = 0;
+						if(format ==  2) rgbOffset = 20;
+						if(format ==  3) rgbOffset = 20;
+						if(format ==  5) rgbOffset = 28;
+						if(format ==  6) rgbOffset = 30;
+						if(format ==  7) rgbOffset = 30;
+						if(format ==  8) rgbOffset = 30;
+						if(format == 10) rgbOffset = 30;
+
+						// println("laszp boxMin: {}, {}", boxMin.x, boxMin.y);
+
+						auto* pTarget = (Point*)buffer->data;
+						for (int i = 0; i < numPoints; i++) {
+							double XYZ[3];
+							laszip_read_point(laszip_reader);
+							laszip_get_coordinates(laszip_reader, XYZ);
+
+							Point point{};
+							point.x = std::clamp(float(XYZ[0] - boxMin.x), 0.0f, boxSize.x);
+							point.y = std::clamp(float(XYZ[1] - boxMin.y), 0.0f, boxSize.y);
+							// point.z = std::clamp(float(XYZ[2] - boxMin.z), 0.0f, boxSize.z);
+							// don't change z value
+							point.z = XYZ[2];
+
+							auto rgb = laz_point->rgb;
+							if(rgbOffset != 0){
+								point.rgba[0] = rgb[0] > 255 ? rgb[0] / 256 : rgb[0];
+								point.rgba[1] = rgb[1] > 255 ? rgb[1] / 256 : rgb[1];
+								point.rgba[2] = rgb[2] > 255 ? rgb[2] / 256 : rgb[2];
+							}
+
+							pTarget[i] = point;
+						}
+						laszip_close_reader(laszip_reader);
+					} else {
+						spdlog::warn("Tile is not a LAS/LAZ file {}", file);
+						continue;
+					}
+
+					// Create Upload Task
+					scheduleUploadTask(Task_UploadChunk{
+							task->tileID,
+							task->chunkIndex,
+							task->chunkID,
+							buffer,
+							numPoints
+					});
+
+					// todo: maybe that needs to be synchronized - I don't know yet what this does
+					hostData.isLoading = false;
+					hostData.isLoaded = true;
+				}
 			}
+		}
+		catch (const std::exception& e) {
+			println("LOADER THREAD CRASHED: {}", e.what());
+		}
+		catch (...) {
+			println("LOADER THREAD CRASHED: Unknown Exception");
 		}
 	});
 }
+		
+std::thread spawnHeightmapGeneratorThread(atomic_bool& isClosing) {
+	std::atomic_bool* pClosing = &isClosing; // Store as explicit pointer
 
-std::jthread spawnHeightmapGeneratorThread(atomic_bool& isClosing) {
-	return std::jthread([&]() {
-		cuCtxSetCurrent(context);
-		while (!isClosing) {
-			using namespace std::chrono_literals;
-			std::this_thread::sleep_for(1ms);
-
-			if (!boundsAreValid) {
+	return std::thread([pClosing]() { // Capture the pointer by value
+		try 
+		{
+			cuCtxSetCurrent(context);
+			while (!(*pClosing)) { // Dereference the pointer
+				using namespace std::chrono_literals;
 				std::this_thread::sleep_for(1ms);
-			}
 
-			// only acquire lock if we really have some work to do
-			std::shared_lock<shared_mutex> lock(mtx_loaders);
-
-			if (optional<HeightmapGenerationTask> task = getHeightmapGenerationTask(); task.has_value()) {
-				
-				double sampleMeanZ = 0.0f;
-				for (double z : task->samples.z) {
-					sampleMeanZ += z;
+				if (!boundsAreValid) {
+					std::this_thread::sleep_for(1ms);
 				}
-				sampleMeanZ = sampleMeanZ / double(task->samples.z.size());
 
-				vec2 patchCenterModelSpace = task->coords.center();
-				dvec3 patchCenter = {
-					double(patchCenterModelSpace.x) + boxMinD.x,
-					double(patchCenterModelSpace.y) + boxMinD.y,
-					//.z = double(patchCenterModelSpace.z) + boxMinD.z,
-					//.z = 0.0,
-					sampleMeanZ,
-				};
+				// only acquire lock if we really have some work to do
+				std::shared_lock<shared_mutex> lock(mtx_loaders);
 
-				Patch& patch = patches[heightmaps[task->coords].patchIndex];
+				if (optional<HeightmapGenerationTask> task = getHeightmapGenerationTask(); task.has_value()) {
+					
+					double sampleMeanZ = 0.0f;
+					for (double z : task->samples.z) {
+						sampleMeanZ += z;
+					}
+					sampleMeanZ = sampleMeanZ / double(task->samples.z.size());
 
-				uint32_t numChunkPoints = task->samples.z.size();
-				vector<Point> chunkPoints(numChunkPoints);
-				for (int i = 0; i < numChunkPoints; i++) {
-					Point point;
-					point.x = task->samples.xy[2 * i + 0] - boxMin.x;
-					point.y = task->samples.xy[2 * i + 1] - boxMin.y;
-					point.z = task->samples.z[i] - boxMin.z;
+					vec2 patchCenterModelSpace = task->coords.center();
+					dvec3 patchCenter = {
+						double(patchCenterModelSpace.x) + boxMinD.x,
+						double(patchCenterModelSpace.y) + boxMinD.y,
+						//.z = double(patchCenterModelSpace.z) + boxMinD.z,
+						//.z = 0.0,
+						sampleMeanZ,
+					};
 
-					chunkPoints[i] = point;
-				}
-				// cuMemsetD32(task->dbgHeightmapChunkPoints, numChunkPoints, 1);
-				// cuMemcpyHtoD(task->dbgHeightmapChunkPoints + 16, chunkPoints.data(), chunkPoints.size() * sizeof(Point));
+					Patch& patch = patches[heightmaps[task->coords].patchIndex];
 
-				// DEBUG OUTPUT
-				if(patch.gridCoords.x == settings.debugPatchX && patch.gridCoords.y == settings.debugPatchY){
-					float min = Infinity;
-					float max = -Infinity;
-					for(int i = 0; i < task->samples.z.size(); i++){
-						min = std::min(min, task->samples.z[i]);
-						max = std::max(max, task->samples.z[i]);
+					uint32_t numChunkPoints = task->samples.z.size();
+					vector<Point> chunkPoints(numChunkPoints);
+					for (int i = 0; i < numChunkPoints; i++) {
+						Point point;
+						point.x = task->samples.xy[2 * i + 0] - boxMin.x;
+						point.y = task->samples.xy[2 * i + 1] - boxMin.y;
+						point.z = task->samples.z[i] - boxMin.z;
+
+						chunkPoints[i] = point;
+					}
+					// cuMemsetD32(task->dbgHeightmapChunkPoints, numChunkPoints, 1);
+					// cuMemcpyHtoD(task->dbgHeightmapChunkPoints + 16, chunkPoints.data(), chunkPoints.size() * sizeof(Point));
+
+					// DEBUG OUTPUT
+					if(patch.gridCoords.x == settings.debugPatchX && patch.gridCoords.y == settings.debugPatchY){
+						float min = Infinity;
+						float max = -Infinity;
+						for(int i = 0; i < task->samples.z.size(); i++){
+							min = std::min(min, task->samples.z[i]);
+							max = std::max(max, task->samples.z[i]);
+						}
+
+						println("=======================================================================");
+						println("=======================================================================");
+						println("PATCH {} / {}", patch.gridCoords.x, patch.gridCoords.y);
+						println("min: {}", min);
+						println("max: {}", max);
 					}
 
-					println("=======================================================================");
-					println("=======================================================================");
-					println("PATCH {} / {}", patch.gridCoords.x, patch.gridCoords.y);
-					println("min: {}", min);
-					println("max: {}", max);
+					heightmapGenerator->prog_utilities = prog_utilities;
+
+					double t_start = now();
+
+					glm::ivec2 heightmapCoords = {task->coords.x, task->coords.y};
+					if (heightmapGenerator->generateHeightmapRgb(task->heightmapBuffer, task->heightmapTextureBuffer, patchCenter, task->samples, heightmapCoords)) {
+						lock_guard<mutex> heightmapsLock(mtx_heightmaps);
+						heightmaps[task->coords].hasHeightmap = true;
+						patches[heightmaps[task->coords].patchIndex].hasHeightmap = true;
+						paatchesNeedUpdate = true;
+
+						double duration = now() - t_start;
+						double millies = duration * 1000.0;
+
+						Runtime::numGeneratedHeightmaps++;
+
+						// println("generated heightmap for patch {:3} / {:3}. Center: {:12.3f}, {:12.3f}, {:12.3f}, min: {:12L}, {:12L}, max: {:12L}, {:12L}. Duration: {:.1f} ms", 
+						// 	task->coords.x, task->coords.y,
+						// 	patchCenter.x, patchCenter.y, patchCenter.z,
+						// 	patch.min.x, patch.min.y, patch.max.x, patch.max.y, 
+						// 	millies
+						// );
+					}else{
+						lock_guard<mutex> heightmapsLock(mtx_heightmaps);
+						heightmaps[task->coords].hasHeightmap = true;
+						Patch& patch = patches[heightmaps[task->coords].patchIndex];
+						patch.hasHeightmap = true;
+						
+
+						cuMemsetD8((CUdeviceptr)patch.texture, 0, 64 * 64 * 4);
+
+						paatchesNeedUpdate = true;
+						Runtime::numGeneratedHeightmaps++;
+					}
+					// if (heightmapGenerator->generateHeightmap(task->heightmapBuffer, patchCenter, task->samples)) {
+					// 	lock_guard<mutex> heightmapsLock(mtx_heightmaps);
+					// 	heightmaps[task->coords].hasHeightmap = true;
+					// 	patches[heightmaps[task->coords].patchIndex].hasHeightmap = true;
+					// 	paatchesNeedUpdate = true;
+
+					// 	// double duration = now() - t_start;
+					// 	// double millies = duration * 1000.0;
+
+					// 	// println("generated heightmap for patch {:3} / {:3}. Center: {:12.3f}, {:12.3f}, {:12.3f}, min: {:12L}, {:12L}, max: {:12L}, {:12L}. Duration: {:.1f} ms", 
+					// 	// 	task->coords.x, task->coords.y,
+					// 	// 	patchCenter.x, patchCenter.y, patchCenter.z,
+					// 	// 	patch.min.x, patch.min.y, patch.max.x, patch.max.y, 
+					// 	// 	millies
+					// 	// );
+					// }
 				}
-
-				heightmapGenerator->prog_utilities = prog_utilities;
-
-				double t_start = now();
-
-				glm::ivec2 heightmapCoords = {task->coords.x, task->coords.y};
-				if (heightmapGenerator->generateHeightmapRgb(task->heightmapBuffer, task->heightmapTextureBuffer, patchCenter, task->samples, heightmapCoords)) {
-					lock_guard<mutex> heightmapsLock(mtx_heightmaps);
-					heightmaps[task->coords].hasHeightmap = true;
-					patches[heightmaps[task->coords].patchIndex].hasHeightmap = true;
-					paatchesNeedUpdate = true;
-
-					double duration = now() - t_start;
-					double millies = duration * 1000.0;
-
-					Runtime::numGeneratedHeightmaps++;
-
-					// println("generated heightmap for patch {:3} / {:3}. Center: {:12.3f}, {:12.3f}, {:12.3f}, min: {:12L}, {:12L}, max: {:12L}, {:12L}. Duration: {:.1f} ms", 
-					// 	task->coords.x, task->coords.y,
-					// 	patchCenter.x, patchCenter.y, patchCenter.z,
-					// 	patch.min.x, patch.min.y, patch.max.x, patch.max.y, 
-					// 	millies
-					// );
-				}else{
-					lock_guard<mutex> heightmapsLock(mtx_heightmaps);
-					heightmaps[task->coords].hasHeightmap = true;
-					Patch& patch = patches[heightmaps[task->coords].patchIndex];
-					patch.hasHeightmap = true;
-					
-
-					cuMemsetD8((CUdeviceptr)patch.texture, 0, 64 * 64 * 4);
-
-					paatchesNeedUpdate = true;
-					Runtime::numGeneratedHeightmaps++;
-				}
-				// if (heightmapGenerator->generateHeightmap(task->heightmapBuffer, patchCenter, task->samples)) {
-				// 	lock_guard<mutex> heightmapsLock(mtx_heightmaps);
-				// 	heightmaps[task->coords].hasHeightmap = true;
-				// 	patches[heightmaps[task->coords].patchIndex].hasHeightmap = true;
-				// 	paatchesNeedUpdate = true;
-
-				// 	// double duration = now() - t_start;
-				// 	// double millies = duration * 1000.0;
-
-				// 	// println("generated heightmap for patch {:3} / {:3}. Center: {:12.3f}, {:12.3f}, {:12.3f}, min: {:12L}, {:12L}, max: {:12L}, {:12L}. Duration: {:.1f} ms", 
-				// 	// 	task->coords.x, task->coords.y,
-				// 	// 	patchCenter.x, patchCenter.y, patchCenter.z,
-				// 	// 	patch.min.x, patch.min.y, patch.max.x, patch.max.y, 
-				// 	// 	millies
-				// 	// );
-				// }
 			}
+			
+		}
+		catch (const std::exception& e) 
+		{
+			println("THREAD EXCEPTION: {}", e.what());
+		}
+		catch (...) 
+		{
+			println("THREAD EXCEPTION: Unknown critical error!");
 		}
 	});
 }
@@ -2110,11 +2141,11 @@ int main(int argc, char* argv[]) {
 		onNewFiles(*renderer, listFilesWithExtensions(strOutDir, "las", "laz"));
 	}
 
-	vector<std::jthread> loaderThreads{};
+	vector<std::thread> loaderThreads{};
 	for (int i = 0; i < numThreads; ++i) {
 		loaderThreads.push_back(std::move(spawnLoader(isClosing)));
 	}
-	vector<std::jthread> heightmapGeneratorThreads{};
+	vector<std::thread> heightmapGeneratorThreads{};
 	for (int i = 0; i < numHeightmapGeneratorThreads; ++i) {
 		heightmapGeneratorThreads.push_back(std::move(spawnHeightmapGeneratorThread(isClosing)));
 	}
@@ -2273,10 +2304,10 @@ int main(int argc, char* argv[]) {
 					} else if (command->command == CMD_UNLOAD_CHUNK) {
 						auto* data = (CommandUnloadChunkData*)command->data;
 						scheduleUnloadChunkTask(Task_UnloadChunk{
-								.tileID = int(data->tileID),
-								.chunkIndex = int(data->chunkIndex),
-								.chunkID = int(data->chunkID),
-								.cptr = data->cptr_pointBatch,
+								int(data->tileID),
+								int(data->chunkIndex),
+								int(data->chunkID),
+								data->cptr_pointBatch
 						});
 					}
 				}
@@ -2345,9 +2376,9 @@ int main(int argc, char* argv[]) {
 					continue;
 
 				tasks_loadChunk.push_back(Task_LoadChunk{
-						.tileID = int(chunk.tileID),
-						.chunkIndex = int(chunk.chunkIndex),
-						.chunkID = value,
+						int(chunk.tileID),
+						int(chunk.chunkIndex),
+						value
 				});
 
 				hostData.isLoading = true;

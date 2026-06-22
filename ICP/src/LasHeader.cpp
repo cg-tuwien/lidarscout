@@ -1,13 +1,6 @@
-//
-// Created by lherzberger on 6/19/2024.
-//
-
-#include <bit>
-#include <print>
+#include <fmt/core.h>
 #include <string>
-#include <format>
 #include <iostream>
-
 
 #include "LasHeader.h"
 
@@ -15,9 +8,17 @@
 #include "bytestreamin_array.hpp"
 #include "integercompressor.hpp"
 
+// C++17 compile-time endianness check
+#ifdef _WIN32
+    constexpr bool is_big_endian = false; 
+#else
+    #include <endian.h>
+    constexpr bool is_big_endian = __BYTE_ORDER == __BIG_ENDIAN;
+#endif
+
 namespace icp {
 std::unique_ptr<ByteStreamInArray> makeByteStreamArray(const U8* buffer, size_t bufferSize) {
-	if constexpr (std::endian::native == std::endian::big) {
+	if constexpr (is_big_endian) {
 		return std::make_unique<ByteStreamInArrayBE>(buffer, bufferSize);
 	} else {
 		// use little endian for LE and mixed endian systems
@@ -51,8 +52,7 @@ void LasHeader::parseChunkOffsets(const std::byte* buffer, size_t bufferSize) {
 	}
 
 	for(int i = 0; i <= 60; i++){
-		std::string str = std::format("chunk[{:3}] offset: {:10L}, size: -", i, chunkOffsets[i]);
-		// std::println("{}", str);
+		std::string str = fmt::format("chunk[{:3}] offset: {:10L}, size: -", i, chunkOffsets[i]);
 		std::cout << str << std::endl;
 	}
 }

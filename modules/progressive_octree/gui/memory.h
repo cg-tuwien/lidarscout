@@ -1,3 +1,5 @@
+using fmt::println;
+using fmt::format;
 
 void makeMemory(shared_ptr<GLRenderer> renderer){
 

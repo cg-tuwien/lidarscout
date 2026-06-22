@@ -1,5 +1,7 @@
 #include <regex>
 
+using fmt::println;
+using fmt::format;
 
 void makeCameraPaths(shared_ptr<GLRenderer> renderer){
 
@@ -44,8 +46,6 @@ void makeCameraPaths(shared_ptr<GLRenderer> renderer){
 				auto pos = controls->getPosition();
 				auto target = controls->target;
 
-				// "1.0    -3.077   -0.759     83010.277     60212.985, 29823.837, -1426.357"
-
 				string line = format("{:.1f}{:10.3f}{:9.3f}{:14.3f}{:14.3f} {:10.3f} {:10.3f}\n", 
 					1.0f, controls->yaw, controls->pitch, controls->radius,
 					target.x, target.y, target.z
@@ -55,17 +55,6 @@ void makeCameraPaths(shared_ptr<GLRenderer> renderer){
 				if(len + line.size() + 5 < bufferSize){
 					strcpy_s(buffer + len, bufferSize - len - 1, line.c_str()); 
 				}
-
-
-				// std::stringstream ss;
-				// ss << std::setprecision(2) << std::fixed;
-				// ss << std::format("yaw    = {:.3f};\n", controls->yaw);
-				// ss << std::format("pitch  = {:.3f};\n", controls->pitch);
-				// ss << std::format("radius = {:.3f};\n", controls->radius);
-				// ss << std::format("target = {{ {:.3f}, {:.3f}, {:.3f}, }};\n", target.x, target.y, target.z);
-
-				// string str = ss.str();
-				// println("{}", str);
 			}
 			
 			struct KeyFrame{
@@ -105,11 +94,11 @@ void makeCameraPaths(shared_ptr<GLRenderer> renderer){
 					};
 
 					keyframes.push_back({
-						.time   = time,
-						.yaw    = yaw,
-						.pitch  = pitch,
-						.radius = radius,
-						.target = target,
+						time,
+						yaw,
+						pitch,
+						radius,
+						target
 					});
 				}
 				
@@ -140,34 +129,6 @@ void makeCameraPaths(shared_ptr<GLRenderer> renderer){
 
 				double endTime = keyframes[keyframes.size() - 1].time;
 
-				// auto animate1 = [keyframes, renderer, gauss, endTime](double u){
-
-				// 	vector<double> weights(keyframes.size());
-
-				// 	double sum = 0.0;
-				// 	for(int i = 0; i < keyframes.size(); i++){
-				// 		double weight = gauss(u, 0.21, keyframes[i].time / endTime);
-				// 		weights[i] = weight;
-				// 		sum += weight;
-				// 	}
-
-				// 	double yaw, pitch, radius = 0;
-				// 	dvec3 target = {0.0, 0.0, 0.0};
-
-				// 	for(int i = 0; i < keyframes.size(); i++){
-				// 		double w = weights[i] / sum;
-				// 		yaw    += w * keyframes[i].yaw;
-				// 		pitch  += w * keyframes[i].pitch;
-				// 		radius += w * keyframes[i].radius;
-				// 		target += w * keyframes[i].target;
-				// 	}
-
-				// 	renderer->controls->yaw = yaw;
-				// 	renderer->controls->pitch = pitch;
-				// 	renderer->controls->radius = radius;
-				// 	renderer->controls->target = target;
-				// };
-
 				auto animate1 = [keyframes, renderer, gauss, smoothstep, linear](double u){
 
 					KeyFrame a = keyframes[0];
@@ -182,41 +143,13 @@ void makeCameraPaths(shared_ptr<GLRenderer> renderer){
 					renderer->controls->pitch  = w_a * a.pitch  + w_b * b.pitch ;
 					renderer->controls->radius = w_a * a.radius + w_b * b.radius;
 					renderer->controls->target = double(w_a) * a.target + double(w_b) * b.target;
-
-					
 				};
-
-				//auto animate2 = [keyframes, renderer](double u){
-				//	KeyFrame a = keyframes[1];
-				//	KeyFrame b = keyframes[2];
-				//	
-				//	renderer->controls->yaw    = (1.0 - u) * a.yaw    + u * b.yaw;
-				//	renderer->controls->pitch  = (1.0 - u) * a.pitch  + u * b.pitch;
-				//	renderer->controls->radius = (1.0 - u) * a.radius + u * b.radius;
-				//	renderer->controls->target = (1.0 - u) * a.target + u * b.target;
-				//};
-
-				//auto animate1 = [keyframes, renderer, animate2](double u){
-				//	KeyFrame a = keyframes[0];
-				//	KeyFrame b = keyframes[1];
-				//	
-				//	renderer->controls->yaw    = (1.0 - u) * a.yaw    + u * b.yaw;
-				//	renderer->controls->pitch  = (1.0 - u) * a.pitch  + u * b.pitch;
-				//	renderer->controls->radius = (1.0 - u) * a.radius + u * b.radius;
-				//	renderer->controls->target = (1.0 - u) * a.target + u * b.target;
-
-				//	if(u == 1.0){
-				//		TWEEN::animate(2.0, animate2);
-				//	}
-				//};
 
 				TWEEN::animate(endTime, animate1);
 
 			}
 		}
 
-
 		ImGui::End();
 	}
-
 }

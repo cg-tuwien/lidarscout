@@ -1,5 +1,5 @@
 
-#include <print>
+#include <fmt/core.h>
 #include <algorithm>
 #include <execution>
 #include <atomic>
@@ -34,8 +34,8 @@ vector<LazChunk> parseChunkTable(shared_ptr<Buffer> buffer_chunkTable, int64_t o
 	int64_t ctVersion = buffer_chunkTable->get<uint32_t>(0);
 	int64_t numChunks = buffer_chunkTable->get<uint32_t>(4);
 
-	// println("chunk table version: {:10}", ctVersion);
-	// println("num chunks:          {:10}", numChunks);
+	// fmt::println("chunk table version: {:10}", ctVersion);
+	// fmt::println("num chunks:          {:10}", numChunks);
 
 	ArithmeticDecoder* dec = new ArithmeticDecoder(buffer_chunkTable->data_u8, 8);
 
@@ -68,7 +68,7 @@ vector<LazChunk> parseChunkTable(shared_ptr<Buffer> buffer_chunkTable, int64_t o
 		LazChunk chunk = chunks[i];
 
 		// string str = format(l, "chunk[{:3}] offset: {:10L}, size: {:7L}", i, chunk.byteOffset, chunk.byteSize);
-		// println("{}", str);
+		// fmt::println("{}", str);
 	}
 
 	return chunks;
@@ -78,7 +78,7 @@ vector<Point> loadLaz(string file) {
 	shared_ptr<Buffer> buffer = readBinaryFile(file, 0, 2 * 4096);
 	int64_t filesize = fs::file_size(file);
 
-	// println("=== loadLaz ===");
+	// fmt::println("=== loadLaz ===");
 
 	int versionMajor = buffer->get<uint8_t>(24);
 	int versionMinor = buffer->get<uint8_t>(25);
@@ -89,7 +89,7 @@ vector<Point> loadLaz(string file) {
 	}else{
 		numPoints = buffer->get<uint64_t>(247);
 	}
-	// println("numPoints: {}", numPoints);
+	// fmt::println("numPoints: {}", numPoints);
 
 	int64_t headerSize = buffer->get<uint16_t>(94);
 	int64_t offsetToPointData = buffer->get<uint16_t>(96);
@@ -114,7 +114,7 @@ vector<Point> loadLaz(string file) {
 	if(recordFormat == 8) offset_rgb = 30;
 	if(recordFormat == 10) offset_rgb = 30;
 	if(recordFormat > 10) {
-		println("ERROR: unsupported record format {}", recordFormat);
+		fmt::println("ERROR: unsupported record format {}", recordFormat);
 		exit(63225);
 	}
 	
@@ -130,14 +130,14 @@ vector<Point> loadLaz(string file) {
 		int64_t recordLengthAfterHeader = buffer->get<uint16_t>(vlrOffset + 20);
 
 		if(recordID == LASZIP_VLR_ID){
-			// println("found laszip vlr. index: {}", vlrIndex);
+			// fmt::println("found laszip vlr. index: {}", vlrIndex);
 			int64_t chunkSize = buffer->get<uint32_t>(vlrOffset + VLR_HEADER_SIZE + 12);
 			int64_t chunkTableStart = buffer->get<int64_t>(offsetToPointData);
 			int64_t chunkTableSize = filesize - chunkTableStart;
 
-			// println("chunkSize:           {:10}", chunkSize);
-			// println("chunkTableStart:     {:10}", chunkTableStart);
-			// println("chunkTableSize:      {:10}", chunkTableSize);
+			// fmt::println("chunkSize:           {:10}", chunkSize);
+			// fmt::println("chunkTableStart:     {:10}", chunkTableStart);
+			// fmt::println("chunkTableSize:      {:10}", chunkTableSize);
 
 			shared_ptr<Buffer> buffer_chunkTable = readBinaryFile(file, chunkTableStart, chunkTableSize);
 
@@ -204,7 +204,7 @@ int main() {
 
 	double t_start = now();
 
-	println("test");
+	fmt::println("test");
 
 	//  vector<string> files = listFilesWithExtensions("D:/resources/pointclouds/NZ23_Gisborne", "laz");
 	// vector<string> files = listFilesWithExtensions("D:/resources/pointclouds/NZ23_Gisborne/Addendum1", "laz");
@@ -233,19 +233,19 @@ int main() {
 
 	// auto locale = getSaneLocale();
     // string strPoints = format(locale, "#points: {:L}", totalNumPoints.load());
-	// println("#files: {}", files.size());
-    // println("{}", strPoints);
+	// fmt::println("#files: {}", files.size());
+    // fmt::println("{}", strPoints);
 
 	// double seconds = now() - t_start;
 
-	// println("read metadata of {} laz files in {:.3f} s", files.size(), seconds);
+	// fmt::println("read metadata of {} laz files in {:.3f} s", files.size(), seconds);
 
 	// {
 	// 	double t_start = now();
 	// 	vector<Point> chunkPoints = loadLaz("D:/resources/pointclouds/NZ23_Gisborne/CL2_BF40_2023_1000_3848.laz");
 	// 	double seconds = now() - t_start;
 
-	// 	println("read {} chunk points in {:.3f} s", chunkPoints.size(), seconds);
+	// 	fmt::println("read {} chunk points in {:.3f} s", chunkPoints.size(), seconds);
 	// }
 
 	{
@@ -257,7 +257,7 @@ int main() {
 		// 	vector<Point> chunkPoints = loadLaz(files[i]);
 		// 	double seconds = now() - t_start;
 
-		// 	println("read {} chunk points in {:.3f} s", chunkPoints.size(), seconds);
+		// 	fmt::println("read {} chunk points in {:.3f} s", chunkPoints.size(), seconds);
 		// }
 
 		vector<Point> chunkPoints;
@@ -275,8 +275,8 @@ int main() {
 		});
 
 		double seconds_batch = now() - t_start_batch;
-		//println("read {} chunkpoints of {} files in {:.3f} s", totalNumChunkPoints.load(), n, seconds_batch);
-		println("read {} chunkpoints of {} files in {:.3f} s", chunkPoints.size(), n, seconds_batch);
+		//fmt::println("read {} chunkpoints of {} files in {:.3f} s", totalNumChunkPoints.load(), n, seconds_batch);
+		fmt::println("read {} chunkpoints of {} files in {:.3f} s", chunkPoints.size(), n, seconds_batch);
 
 
 		stringstream ss;

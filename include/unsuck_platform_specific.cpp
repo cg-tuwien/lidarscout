@@ -1,5 +1,6 @@
 
 #include "unsuck.hpp"
+#include <fmt/core.h>
 
 EventQueue* EventQueue::instance = new EventQueue();
 
@@ -31,20 +32,13 @@ uint64_t getPhysicalSectorSize(string path) {
 	rootPath = rootPath.substr(0, rootPath.find_last_of("\\"));
 	rootPath = rootPath.substr(0, rootPath.find_last_of("/"));
 
-#ifdef __cpp_lib_format
-	std::string strDisk = std::format("\\\\.\\{}", rootPath);
-#else
 	std::string strDisk = fmt::format("\\\\.\\{}", rootPath);
-#endif
 
 	LPCSTR lpcstrDisk = strDisk.c_str();
 	HANDLE hDevice = CreateFileA(lpcstrDisk, 0, 0, NULL, OPEN_EXISTING, 0, NULL);
 
 	DWORD outsize;
-	STORAGE_PROPERTY_QUERY storageQuery = {
-			.PropertyId = StorageAccessAlignmentProperty,
-			.QueryType = PropertyStandardQuery,
-	};
+	STORAGE_PROPERTY_QUERY storageQuery = {StorageAccessAlignmentProperty,PropertyStandardQuery,};
 	STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR diskAlignment = {0};
 
 	DeviceIoControl(

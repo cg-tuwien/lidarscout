@@ -22,6 +22,9 @@ struct TestParams
 	float bb_size;
 	int res_interp;
 	int res_dl;
+    
+    TestParams(std::string hm, std::string rgb, std::vector<coord> pcf, std::vector<float> pv, std::vector<RGB> pvr, float bb, int ri, int rd)
+		: model_path_hm(hm), model_path_rgb(rgb), point_cloud_flat(pcf), pts_values(pv), pts_values_rgb(pvr), bb_size(bb), res_interp(ri), res_dl(rd) {}
 };
 
 // https://stackoverflow.com/questions/22387586/measuring-execution-time-of-a-function-in-c
@@ -357,12 +360,10 @@ int main()
 
     std::vector<RGB> pts_values_rgb = get_values_rgb(pts_values);
 
-    TestParams test_params(model_path_hm, model_path_rgb, 
-        point_cloud_flat, pts_values, pts_values_rgb,
-        bb_size, res_interp, res_dl);
+    TestParams test_params{model_path_hm, model_path_rgb, point_cloud_flat, pts_values, pts_values_rgb, bb_size, res_interp, res_dl};
 
-    int res_triangulation_interpolation = test_triangulation_interpolation(test_params, measure_iterations);
-	int res_learned = test_learned(test_params, measure_iterations);
+    //int res_triangulation_interpolation = test_triangulation_interpolation(test_params, measure_iterations);
+	//int res_learned = test_learned(test_params, measure_iterations);
 	int res_cuda_copy = test_cuda_copy(test_params, measure_iterations);
 	int res_timings_interpolation = test_timings_interpolation(test_params, measure_iterations);
 	int res_timings_learned = test_timings_learned(test_params, measure_iterations);

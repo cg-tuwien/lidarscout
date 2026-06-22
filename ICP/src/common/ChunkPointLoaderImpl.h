@@ -1,14 +1,10 @@
-//
-// Created by lherzberger on 12.06.24.
-//
-
 #pragma once
 
 #ifndef ICP_CHUNKPOINTLOADERIMPL_H
 #define ICP_CHUNKPOINTLOADERIMPL_H
 
 #include <deque>
-#include <ranges>
+#include <algorithm>
 
 #include "instant_chunk_points.h"
 
@@ -17,27 +13,20 @@
 
 #include "AsyncPointLoader.h"
 #include "SharedWorkQueue.h"
-
-/*
- * Needs:
- *	- from config: n loader threads with q depth
- *	- share file states & statistics between threads
- *			- LasHeader
- *			- open yes/no
- *			- chunk table yes/no
- *			- chunk points already read (also: = is done)
- */
+#include <thread>
 
 namespace icp {
 class WorkQueue {
  public:
 	WorkQueue() = delete;
 	WorkQueue(const std::vector<std::string>& filePaths, size_t numThreads) : files(), numThreads(numThreads), preparedJobs({}), unclaimedFiles({}), chunkTableInfos(std::make_shared<std::vector<ChunkTableInfo>>()) {
-		std::ranges::copy(
-				filePaths
-					| std::views::filter([](const auto& path) { return hasLasOrLazExtension(path); })
-					| std::views::transform([](const auto &path) { return std::move(std::make_shared<LasFile>(path)); }),
-				std::back_inserter(files));
+		
+		std::vector<std::string> filteredPaths;
+		std::copy_if(filePaths.begin(), filePaths.end(), std::back_inserter(filteredPaths),
+			[](const auto& path) { return hasLasOrLazExtension(path); });
+
+		std::transform(filteredPaths.begin(), filteredPaths.end(), std::back_inserter(files),
+			[](const auto& path) { return std::make_shared<LasFile>(path); });
 
 		std::vector<std::shared_ptr<LasFile>> headerRequestsVec{};
 		std::copy(files.begin(), files.end(), std::back_inserter(headerRequestsVec));
@@ -58,7 +47,7 @@ class WorkQueue {
 			numChunkPointsTotal += numChunkPoints.value();
 			{
 				std::unique_lock<std::shared_mutex> lock(chunkTableInfoMutex);
-				chunkTableInfos->emplace_back(path, numChunkPoints.value());
+				chunkTableInfos->push_back({path, numChunkPoints.value()});
 			}
 		}
 	}
@@ -136,7 +125,7 @@ class WorkQueue {
 
 class LoaderThread {
  public:
-	explicit LoaderThread(std::atomic<bool>& closing, const std::shared_ptr<WorkQueue>& workQueue, size_t queueDepth = 32, bool computeFileAverages = true):
+	explicit LoaderThread(std::atomic<bool>& closing, const std::shared_ptr<WorkQueue>& _workQueue, size_t queueDepth = 32, bool computeFileAverages = true):
 				workQueue(workQueue),
 				localWorkQueue({}),
 				jobsInProcess({}),
@@ -145,9 +134,11 @@ class LoaderThread {
 				innerLoader(queueDepth),
 				computeFileAverages(computeFileAverages)
 	{
-		thread = std::jthread([&]() {
+		std::atomic<bool>* pClosing = &closing; // Store as explicit pointer
+		
+		thread = std::thread([this, pClosing]() { // Capture 'this' and the pointer safely
 			bool starving = false;
-			while (!closing) {
+			while (!(*pClosing)) {
 				size_t newPendingReads = 0;
 				if (auto job = tryGetWork(); job.has_value()) {
 					std::shared_ptr<PointLoaderJob> toSubmit = *job;
@@ -194,6 +185,12 @@ class LoaderThread {
 			isDone_ = true;
 		});
 	}
+
+    ~LoaderThread() {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
 
 	std::shared_ptr<std::vector<Point>> reapChunkPoints() {
 		auto reap = std::make_shared<std::vector<Point>>();
@@ -309,7 +306,7 @@ class LoaderThread {
 		return innerLoader.sectorSize();
 	}
 
-	std::jthread thread;
+	std::thread thread;
 	std::atomic_bool isDone_ = false;
 	std::shared_ptr<WorkQueue> workQueue;
 	std::deque<std::shared_ptr<PointLoaderJob>> localWorkQueue;
@@ -345,22 +342,21 @@ class ChunkPointLoader::ChunkPointLoaderImpl {
 					false)));
 		}
 
-		controllingThread = std::jthread([&]() {
+		controllingThread = std::thread([this]() { // Safely capture 'this'
 			bool reportedInitialChunkBounds = false;
-			while (!closing) {
-				// todo: sleep interval && set sleep interval
+			while (!this->closing) { // Use this->
 				using namespace std::chrono_literals;
 				std::this_thread::sleep_for(16ms);
 
-				if (!closing && workManager->isDone()) {
-					closing = true;
+				if (!this->closing && workManager->isDone()) {
+					this->closing = true;
 				}
 
 				if (!reportedInitialChunkBounds && workManager->allHeadersRead()) {
 					std::vector<LasFileInfo> bounds{};
 					for (const auto& f : workManager->getFiles()) {
 						if (auto b = f->asChunkBounds(); b.has_value()) {
-							bounds.emplace_back(f->path, b.value(), f->header().numPoints);
+							bounds.push_back({f->path, b.value(), static_cast<size_t>(f->header().numPoints)});
 						} else {
 							spdlog::error("All headers read but file has no header: {}", f->path);
 						}
@@ -390,6 +386,12 @@ class ChunkPointLoader::ChunkPointLoaderImpl {
 		});
 	}
 
+    ~ChunkPointLoaderImpl() {
+        if (controllingThread.joinable()) {
+            controllingThread.join();
+        }
+    }
+
 	void sortRemainingFiles(const std::function<bool(const std::optional<ChunkBounds>&, const std::optional<ChunkBounds>&)>& compareOp) {
 		workManager->sortRemainingFiles(compareOp);
 	}
@@ -412,7 +414,7 @@ class ChunkPointLoader::ChunkPointLoaderImpl {
 	std::function<void(const std::vector<Point>&, bool)> chunkPointsCallback;
 	icp::IoConfig config;
 
-	std::jthread controllingThread;
+	std::thread controllingThread;
 
 	std::vector<std::unique_ptr<LoaderThread>> loaderThreads;
 

@@ -5,10 +5,16 @@
 #include "bytestreamin_array.hpp"
 #include "integercompressor.hpp"
 
-namespace icp2{
+#ifdef _WIN32
+constexpr bool is_big_endian = false;  // Windows architectures are always little-endian
+#else
+#include <endian.h>
+constexpr bool is_big_endian = __BYTE_ORDER == __BIG_ENDIAN;
+#endif
 
+namespace icp2{
 	std::unique_ptr<ByteStreamInArray> makeByteStreamArray(const U8* buffer, size_t bufferSize) {
-		if constexpr (std::endian::native == std::endian::big) {
+		if constexpr (is_big_endian) {
 			return std::make_unique<ByteStreamInArrayBE>(buffer, bufferSize);
 		} else {
 			// use little endian for LE and mixed endian systems
@@ -21,8 +27,8 @@ namespace icp2{
 		int64_t ctVersion = buffer_chunkTable->get<uint32_t>(0);
 		int64_t numChunks = buffer_chunkTable->get<uint32_t>(4);
 
-		// println("chunk table version: {:10}", ctVersion);
-		// println("num chunks:          {:10}", numChunks);
+		// fmt::println("chunk table version: {:10}", ctVersion);
+		// fmt::println("num chunks:          {:10}", numChunks);
 
 		// laszip_stuff::ArithmeticDecoder* dec = new laszip_stuff::ArithmeticDecoder(buffer_chunkTable->data_u8, 8);
 
@@ -75,7 +81,7 @@ namespace icp2{
 		// 	LazChunk chunk = chunks[i];
 
 		// 	string str = format(l, "chunk[{:3}] offset: {:10L}, size: {:7L}", i, chunk.byteOffset, chunk.byteSize);
-		// 	println("{}", str);
+		// 	fmt::println("{}", str);
 		// }
 
 		return chunks;

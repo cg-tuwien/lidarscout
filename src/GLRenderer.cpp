@@ -4,6 +4,9 @@
 #include "GLRenderer.h"
 #include "Runtime.h"
 
+using fmt::println;
+using fmt::format;
+
 namespace fs = std::filesystem;
 
 auto global_controls = std::make_shared<OrbitControls>();

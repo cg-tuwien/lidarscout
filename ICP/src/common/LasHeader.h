@@ -8,6 +8,7 @@
 #define ICP_LASHEADER_H
 
 #include <array>
+#include <fmt/core.h>
 #include <cstddef>
 #include <optional>
 #include <iostream>
@@ -233,7 +234,7 @@ struct LasHeader {
 		static int count = 0;
 		if(count < 60){
 			
-			std::string str = std::format("{:10L}, {:10L}, {:10L}    {:12.2f}, {:12.2f}, {:12.2f}",
+			std::string str = fmt::format("{:10L}, {:10L}, {:10L}    {:12.2f}, {:12.2f}, {:12.2f}",
 				X, Y, Z, point.x, point.y, point.z
 			);
 			std::cout << str << std::endl;

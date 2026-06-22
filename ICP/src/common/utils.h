@@ -6,9 +6,12 @@
 #define ICP_UTILS_H
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <chrono>
 #include <filesystem>
+#include <cstring>
+#include <string>
 
 namespace icp {
 constexpr bool isPowerOf2(size_t v) {
@@ -21,8 +24,13 @@ template <typename T> T read(const std::byte* buffer, off_t offset) {
   return value;
 }
 
-inline bool isTimeout(const auto start, auto timeoutSeconds) {
+template <typename ClockTime, typename Timeout>
+inline bool isTimeout(const ClockTime& start, Timeout timeoutSeconds) {
   return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() > timeoutSeconds;
+}
+
+inline bool endsWith(const std::string& value, const std::string& suffix) {
+  return value.size() >= suffix.size() && value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
 inline std::string toLower(const std::string& string) {
@@ -32,12 +40,12 @@ inline std::string toLower(const std::string& string) {
 }
 
 inline bool hasLazExtension(const std::string& path) {
-  return toLower(path).ends_with("laz");
+  return endsWith(toLower(path), "laz");
 }
 
 inline bool hasLasOrLazExtension(const std::string& path) {
   auto ext = toLower(path);
-  return ext.ends_with("las") || ext.ends_with("laz");
+  return endsWith(ext, "las") || endsWith(ext, "laz");
 }
 
 size_t maxOpenFileHandles();

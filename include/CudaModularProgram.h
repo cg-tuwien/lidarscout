@@ -2,8 +2,7 @@
 
 #include <string>
 #include <unordered_map>
-#include <print>
-#include <source_location>
+#include <fmt/core.h>
 
 #include "unsuck.hpp"
 
@@ -13,6 +12,8 @@
 #include "cuda.h"
 
 using std::string;
+using fmt::println;
+using fmt::format;
 
 using namespace std;
 
@@ -48,14 +49,9 @@ do {                                                              \
    }                                                              \
 } while(0)
 
-inline static void check(CUresult result, source_location location = source_location::current()){
+inline static void check(CUresult result){
 	if(result != CUDA_SUCCESS){
-		//cout << "cuda error code: " << result << endl;
-
 		uint32_t code = result;
-		string filename = location.file_name();
-		uint32_t line = location.line();
-		string functionName = location.function_name();
 
 		const char* errorName;
 		cuGetErrorName(result, &errorName);
@@ -64,7 +60,6 @@ inline static void check(CUresult result, source_location location = source_loca
 		cuGetErrorString(result, &errorString);
 
 		println("ERROR(CUDA): code: {}, name: '{}', string: '{}'", code, errorName, errorString);
-		println("    at file: {}, line: {}, function: {}", filename, line, functionName);
 	}
 }; 
 
@@ -77,12 +72,6 @@ struct OptionalLaunchSettings{
 };
 
 struct CudaModule{
-
-	// static void cu_checked(CUresult result){
-	// 	if(result != CUDA_SUCCESS){
-	// 		cout << "cuda error code: " << result << endl;
-	// 	}
-	// };
 
 	string path = "";
 	string name = "";
@@ -112,10 +101,9 @@ struct CudaModule{
 		string dir = fs::path(path).parent_path().string();
 
 		string cuda_path = std::getenv("CUDA_PATH");
-		string optInclude = std::format("-I {}", dir).c_str();
-		string cuda_include = std::format("-I {}/include", cuda_path);
-		string cudastd_include = std::format("-I {}/include/cuda/std", cuda_path);
-		//string cudastd_detail_include = std::format("-I {}/include/cuda/std/detail/libcxx/include", cuda_path);
+		string optInclude = format("-I {}", dir).c_str();
+		string cuda_include = format("-I {}/include", cuda_path);
+		string cudastd_include = format("-I {}/include/cuda/std", cuda_path);
 
 		CUdevice device;
 		cuCtxGetDevice(&device);
@@ -126,14 +114,11 @@ struct CudaModule{
 		cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, device);
 
 		string arch = format("--gpu-architecture=compute_{}{}", major, minor);
-		// string arch = "--gpu-architecture=compute_75";
 
 		nvrtcProgram prog;
 		string source = readFile(path);
 		nvrtcCreateProgram(&prog, source.c_str(), name.c_str(), 0, NULL, NULL);
 		std::vector<const char*> opts = { 
-			// "--gpu-architecture=compute_75",
-			// "--gpu-architecture=compute_86",
 			arch.c_str(),
 			"--use_fast_math",
 			"--extra-device-vectorization",
@@ -146,7 +131,6 @@ struct CudaModule{
 			"--relocatable-device-code=true",
 			"-default-device",                   // assume __device__ if not specified
 			"--dlink-time-opt",                  // link time optimization "-dlto", 
-			// "--dopt=on",
 			"--std=c++20",
 			"--disable-warnings",
 			"--split-compile=0",                 // compiler optimizations in parallel. 0 -> max available threads
@@ -167,7 +151,6 @@ struct CudaModule{
 			nvrtcGetProgramLogSize(prog, &logSize);
 			char* log = new char[logSize];
 			nvrtcGetProgramLog(prog, log);
-			//std::cerr << "Program Log: " <<  log << std::endl;
 			println("Program Log: {}", log);
 
 			delete[] log;
@@ -218,16 +201,9 @@ struct CudaModularProgram{
 		vector<string> kernels;
 	};
 
-	// static void cu_checked(CUresult result){
-	// 	if(result != CUDA_SUCCESS){
-	// 		cout << "cuda error code: " << result << endl;
-	// 	}
-	// };
-
 	vector<CudaModule*> modules;
 
 	CUmodule mod;
-	// CUfunction kernel = nullptr;
 	void* cubin = nullptr;
 	size_t cubinSize;
 
@@ -238,18 +214,13 @@ struct CudaModularProgram{
 
 	unordered_map<string, CUevent> events_launch_start;
 	unordered_map<string, CUevent> events_launch_end;
-	// unordered_map<string, float> last_launch_duration;
-
-	// int MAX_LAUNCH_DURATIONS = 50;
-	// unordered_map<string, vector<float>> last_launch_durations;
-	// unordered_map<string, int> launches_per_frame;
 
 	CudaModularProgram(){
 
 	}
 
 	CudaModularProgram(vector<string> modules){
-		construct({.modules = modules,});
+		construct({modules}); // C++17 designated init workaround
 	}
 
 	CudaModularProgram(CudaModularProgramArgs args){
@@ -280,13 +251,6 @@ struct CudaModularProgram{
 
 				string strName = name;
 
-				// println("============================================");
-				// println("KERNEL: \"{}\"", strName);
-				// int value;
-
-				// cuFuncGetAttribute(&value, CU_FUNC_ATTRIBUTE_NUM_REGS, function);
-				// cuFuncGetAttribute(&value, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, function);
-
 				program->kernelNames.push_back(strName);
 				program->kernels[strName] = function;
 
@@ -305,9 +269,6 @@ struct CudaModularProgram{
 
 	void construct(CudaModularProgramArgs args){
 		vector<string> modulePaths = args.modules;
-		// vector<string> kernelNames = args.kernels;
-
-		// this->kernelNames = kernelNames;
 
 		for(auto modulePath : modulePaths){
 
@@ -358,8 +319,7 @@ struct CudaModularProgram{
 		cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, cuDevice);
 
 		int arch = major * 10 + minor;
-		// int arch = 86;
-		string strArch = std::format("-arch=sm_{}", arch);
+		string strArch = format("-arch=sm_{}", arch);
 
 		const char *lopts[] = {
 			"-dlto",      // link time optimization
@@ -389,11 +349,6 @@ struct CudaModularProgram{
 		NVJITLINK_SAFE_CALL(handle, nvJitLinkGetLinkedCubin(handle, cubin));
 		NVJITLINK_SAFE_CALL(handle, nvJitLinkDestroy(&handle));
 
-
-		// static int cubinID = 0;
-		// writeBinaryFile(format("./program_{}.cubin", cubinID), (uint8_t*)cubin, cubinSize);
-		// cubinID++;
-
 		check(cuModuleLoadData(&mod, cubin));
 
 		{ // Retrieve Kernels
@@ -411,13 +366,6 @@ struct CudaModularProgram{
 				cuFuncGetName(&name, function);
 
 				string strName = name;
-
-				// println("============================================");
-				// println("KERNEL: \"{}\"", strName);
-				// int value;
-
-				// cuFuncGetAttribute(&value, CU_FUNC_ATTRIBUTE_NUM_REGS, function);
-				// cuFuncGetAttribute(&value, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, function);
 
 				kernelNames.push_back(strName);
 				kernels[strName] = function;
@@ -448,8 +396,8 @@ struct CudaModularProgram{
 		lock_guard<mutex> lock(mtx_timings);
 
 		int launchIndex = 0;
-		for(auto timing : timings){
-			if(timing.kernelName == timing.kernelName){
+		for(auto t : timings){
+			if(t.kernelName == timing.kernelName){
 				launchIndex++;
 			}
 		}
@@ -465,13 +413,12 @@ struct CudaModularProgram{
 		timings.clear();
 	}
 
-	void launch(string kernelName, vector<void*> args, OptionalLaunchSettings launchArgs = {}, source_location location = source_location::current()){
+	void launch(string kernelName, vector<void*> args, OptionalLaunchSettings launchArgs = {}){
 		void** _args = &args[0];
-
-		this->launch(kernelName, _args, launchArgs, location);
+		this->launch(kernelName, _args, launchArgs);
 	}
 
-	void launch(string kernelName, void** args, OptionalLaunchSettings launchArgs, source_location location = source_location::current()){
+	void launch(string kernelName, void** args, OptionalLaunchSettings launchArgs){
 
 		CUevent event_start = events_launch_start[kernelName];
 		CUevent event_end   = events_launch_end[kernelName];
@@ -494,9 +441,6 @@ struct CudaModularProgram{
 
 		if (res_launch != CUDA_SUCCESS) {
 
-			// const char* str;
-			// cuGetErrorString(res_launch, &str);
-
 			const char* errorName;
 			cuGetErrorName(res_launch, &errorName);
 
@@ -506,19 +450,10 @@ struct CudaModularProgram{
 			println("ERROR: failed to launch kernel \"{}\". gridSize: {}, blocksize: {}", kernelName, launchArgs.gridsize, launchArgs.blocksize);
 
 			uint32_t code = res_launch;
-			string filename = location.file_name();
-			uint32_t line = location.line();
-			string functionName = location.function_name();
 
 			println("ERROR(CUDA): code: {}, name: '{}', string: '{}'", code, errorName, errorString);
-			println("    at file: {}, line: {}, function: {}", filename, line, functionName);
 
 			exit(74532);
-			// const char* str;
-			// cuGetErrorString(res_launch, &str);
-			// printf("error: %s \n", str);
-			// cout << __FILE__ << " - " << __LINE__ << endl;
-			// println("kernel: {}", kernelName);
 		}
 
 		if(measureTimings){
@@ -534,20 +469,18 @@ struct CudaModularProgram{
 			timing.kernelName = kernelName;
 
 			CudaModularProgram::addTiming(timing);
-
-			// addLaunchDuration(kernelName, duration);
 		}
 	}
 
-	void launch(string kernelName, vector<void*> args, int count, CUstream stream = 0, source_location location = source_location::current()){
+	void launch(string kernelName, vector<void*> args, int count, CUstream stream = 0){
 		if(count == 0) return;
 
 		void** _args = &args[0];
 
-		this->launch(kernelName, _args, count, stream, location);
+		this->launch(kernelName, _args, count, stream);
 	}
 
-	void launch(string kernelName, void** args, int count, CUstream stream = 0, source_location location = source_location::current()){
+	void launch(string kernelName, void** args, int count, CUstream stream = 0){
 
 		if (count == 0){
 			return;
@@ -575,9 +508,6 @@ struct CudaModularProgram{
 			0, stream, args, nullptr);
 
 		if (res_launch != CUDA_SUCCESS) {
-			// const char* str;
-			// cuGetErrorString(res_launch, &str);
-
 			const char* errorName;
 			cuGetErrorName(res_launch, &errorName);
 
@@ -587,12 +517,8 @@ struct CudaModularProgram{
 			println("ERROR: failed to launch kernel \"{}\". Threadcount: {}, gridSize: {}", kernelName, count, gridSize);
 
 			uint32_t code = res_launch;
-			string filename = location.file_name();
-			uint32_t line = location.line();
-			string functionName = location.function_name();
 
 			println("ERROR(CUDA): code: {}, name: '{}', string: '{}'", code, errorName, errorString);
-			println("    at file: {}, line: {}, function: {}", filename, line, functionName);
 
 			exit(42415);
 		}
@@ -612,13 +538,13 @@ struct CudaModularProgram{
 		}
 	}
 
-	void launchCooperative(string kernelName, vector<void*> args, OptionalLaunchSettings launchArgs = {}, source_location location = source_location::current()){
+	void launchCooperative(string kernelName, vector<void*> args, OptionalLaunchSettings launchArgs = {}){
 		void** _args = &args[0];
 
 		this->launchCooperative(kernelName, _args, launchArgs);
 	}
 
-	void launchCooperative(string kernelName, void** args, OptionalLaunchSettings launchArgs = {}, source_location location = source_location::current()){
+	void launchCooperative(string kernelName, void** args, OptionalLaunchSettings launchArgs = {}){
 
 		CUevent event_start = events_launch_start[kernelName];
 		CUevent event_end   = events_launch_end[kernelName];
@@ -641,13 +567,8 @@ struct CudaModularProgram{
 		CUresult resultcode = cuOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocks, kernels[kernelName], blockSize, 0);
 		numBlocks *= numSMs;
 		
-		//numGroups = 100;
 		// make sure at least 10 workgroups are spawned)
 		numBlocks = std::clamp(numBlocks, 10, 100'000);
-
-		// if(launchArgs.blocksize > 0){
-		// 	numBlocks = launchArgs.blocksize;
-		// }
 
 		auto kernel = this->kernels[kernelName];
 		auto res_launch = cuLaunchCooperativeKernel(kernel,
@@ -656,9 +577,6 @@ struct CudaModularProgram{
 			0, launchArgs.stream, args);
 
 		if (res_launch != CUDA_SUCCESS) {
-			// const char* str;
-			// cuGetErrorString(res_launch, &str);
-
 			const char* errorName;
 			cuGetErrorName(res_launch, &errorName);
 
@@ -668,12 +586,8 @@ struct CudaModularProgram{
 			println("ERROR: failed to launchCooperative kernel \"{}\". gridSize: {}, blockSize: {}", kernelName, numBlocks, blockSize);
 
 			uint32_t code = res_launch;
-			string filename = location.file_name();
-			uint32_t line = location.line();
-			string functionName = location.function_name();
 
 			println("ERROR(CUDA): code: {}, name: '{}', string: '{}'", code, errorName, errorString);
-			println("    at file: {}, line: {}, function: {}", filename, line, functionName);
 
 			exit(42415);
 		}
