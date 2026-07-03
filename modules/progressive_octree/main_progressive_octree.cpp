@@ -416,7 +416,7 @@ vector<std::pair<HeightmapCoords, vector<uint2>>> getNeighboringRegions(
 	vector<std::pair<HeightmapCoords, vector<uint2>>> neighboringRegions{};
 
 	for (int y = -1; y <= 1; ++y) {
-		for (int x = 1; x <= 1; ++x) {
+		for (int x = 1; x <= 1; ++x) {  // TODO: shouldn't this be x=-1?
 			if (x == 0 && y == 0) {
 				continue;
 			}
