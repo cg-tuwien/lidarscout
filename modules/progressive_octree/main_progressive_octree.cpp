@@ -2209,7 +2209,7 @@ int main(int argc, char* argv[]) {
 				}
 				if (isChunkInFrustum(a.value())) {
 					if (isChunkInFrustum(b.value())) {
-						return chunkSizeOnScreen(a.value()) > chunkSizeOnScreen(a.value());
+						return chunkSizeOnScreen(a.value()) > chunkSizeOnScreen(a.value());  // TODO: shouldn't one be b?
 					} else {
 						// assume the file we know is more important
 						return true;
@@ -2218,7 +2218,7 @@ int main(int argc, char* argv[]) {
 					// assume the file we know is more important
 					return false;
 				} else {
-					return distanceToCamera(a.value()) < distanceToCamera(a.value());
+					return distanceToCamera(a.value()) < distanceToCamera(a.value());  // TODO: shouldn't one be b?
 				}
 				return true;
 			});
